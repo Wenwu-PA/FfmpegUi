@@ -89,6 +89,10 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
   padding: var(--space-6) var(--measure-13) var(--measure-13);
+  transition:
+    width var(--animation-duration) ease,
+    min-width var(--animation-duration) ease,
+    padding var(--animation-duration) ease;
 }
 
 .brand {
@@ -150,6 +154,11 @@ select:focus-visible {
   align-items: center;
   gap: var(--measure-11);
   font-size: var(--font-md);
+  transition:
+    width var(--animation-duration) ease,
+    padding var(--animation-duration) ease,
+    background-color var(--animation-duration) ease,
+    color var(--animation-duration) ease;
 }
 
 .nav-item:hover {
@@ -1448,6 +1457,8 @@ body {
 }
 
 .sidebar-collapsed .sidebar {
+  position: relative;
+  z-index: var(--z-modal);
   width: var(--measure-76);
   min-width: var(--measure-76);
   padding-inline: var(--measure-10);
@@ -1476,19 +1487,50 @@ body {
 
 .sidebar-collapsed .nav-item:hover::after,
 .sidebar-collapsed .nav-item:focus-visible::after {
-  content: attr(title);
+  content: attr(data-tooltip);
   position: absolute;
   z-index: var(--z-dropdown);
   left: calc(100% + var(--measure-8));
   top: 50%;
   transform: translateY(-50%);
+  max-width: min(var(--measure-220), calc(100vw - var(--measure-96)));
   padding: var(--measure-7) var(--measure-10);
   border: var(--border-width) solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  pointer-events: none;
   box-shadow: var(--shadow-sm);
+}
+
+.sidebar-collapsed .user-card:hover::after,
+.sidebar-collapsed .user-card:focus-visible::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  z-index: var(--z-dropdown);
+  left: calc(100% + var(--measure-8));
+  top: 50%;
+  max-width: min(var(--measure-220), calc(100vw - var(--measure-96)));
+  padding: var(--measure-7) var(--measure-10);
+  transform: translateY(-50%);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  box-shadow: var(--shadow-sm);
+}
+
+.app-shell[data-sidebar-position='right'].sidebar-collapsed .nav-item:hover::after,
+.app-shell[data-sidebar-position='right'].sidebar-collapsed .nav-item:focus-visible::after,
+.app-shell[data-sidebar-position='right'].sidebar-collapsed .user-card:hover::after,
+.app-shell[data-sidebar-position='right'].sidebar-collapsed .user-card:focus-visible::after {
+  right: calc(100% + var(--measure-8));
+  left: auto;
 }
 
 .sidebar-collapsed .nav-count {
@@ -1523,6 +1565,7 @@ body {
 }
 
 .sidebar-collapsed .user-card {
+  position: relative;
   width: var(--measure-54);
   height: var(--measure-54);
   justify-content: center;
@@ -1546,6 +1589,15 @@ body {
   left: calc(100% + var(--measure-8));
   right: auto;
   bottom: 0;
+}
+
+.app-shell[data-sidebar-position='right'].sidebar-collapsed .profile-menu {
+  right: calc(100% + var(--measure-8));
+  left: auto;
+}
+
+.sidebar-collapsed .user-card[aria-expanded='true']::after {
+  content: none;
 }
 
 .appearance-settings {
@@ -1965,6 +2017,11 @@ body {
   width: 100%;
   cursor: pointer;
   text-align: left;
+  transition:
+    width var(--animation-duration) ease,
+    height var(--animation-duration) ease,
+    background-color var(--animation-duration) ease,
+    border-color var(--animation-duration) ease;
 }
 
 .profile-avatar {
@@ -1974,12 +2031,19 @@ body {
   overflow: hidden;
   border-radius: 50%;
   font-size: var(--font-base);
+  object-fit: cover;
+  object-position: center;
+  transition:
+    width var(--animation-duration) ease,
+    height var(--animation-duration) ease,
+    min-width var(--animation-duration) ease;
 }
 
 .profile-avatar img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
   border-radius: 50%;
 }
 
@@ -2017,10 +2081,4 @@ body {
 
 .profile-menu button:hover {
   background: color-mix(in srgb, var(--accent) 12%, var(--surface));
-}
-
-.sidebar-collapsed .profile-menu {
-  min-width: var(--measure-210);
-  left: auto;
-  right: 0;
 }
