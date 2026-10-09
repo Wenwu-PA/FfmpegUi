@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, shell, protocol, net, Menu, nativeImage, Tray, session } from 'electron'
 import { spawn } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
-import { createReadStream, existsSync } from 'node:fs'
+import { createReadStream, existsSync, readFileSync, renameSync } from 'node:fs'
 import { mkdir, open, readFile, readdir, rename, rm, stat, statfs, writeFile } from 'node:fs/promises'
 import { path7za } from '7zip-bin'
 import path from 'node:path'
@@ -10,9 +10,25 @@ import Store from 'electron-store'
 import { z } from 'zod'
 import type { FfmpegProgress } from '../src/shared/types'
 import { calculateDownloadProgress, getResumeOffset, matchesSha256, parseFfmpegVersion, parseSha256, selectFirstWorkingCandidate } from '../src/shared/ffmpegInstaller'
+import { appearanceSchema, defaultAppearance, type Appearance } from '../src/shared/appearance'
 
-const store = new Store<{ ffmpegPath?: string; outputDir?: string; theme?: string; ffmpegVersion?: string; proxy?: string }>({ name: 'settings' })
-const settings = store as unknown as { get(key: string): string | undefined; set(key: string, value: unknown): void }
+type WindowBounds = { x?: number; y?: number; width: number; height: number }
+type SettingsData = { ffmpegPath?: string; outputDir?: string; ffmpegVersion?: string; proxy?: string; appearance?: Appearance; appearanceProfiles?: { name: string; appearance: Appearance }[]; settingsVersion?: number; windowBounds?: WindowBounds }
+const settingsFile = path.join(app.getPath('userData'), 'settings.json')
+let legacyTheme: Appearance['theme'] = 'dark'
+if (existsSync(settingsFile)) {
+  try {
+    const saved = JSON.parse(readFileSync(settingsFile, 'utf8')) as { theme?: unknown } | null
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) throw new Error('Invalid settings root')
+    if (saved.theme === 'light' || saved.theme === 'dark' || saved.theme === 'system') legacyTheme = saved.theme
+  } catch { renameSync(settingsFile, `${settingsFile}.corrupt-${Date.now()}`) }
+}
+const store = new Store<SettingsData>({ name: 'settings' })
+const settings = store as unknown as { get<K extends keyof SettingsData>(key: K): SettingsData[K]; set<K extends keyof SettingsData>(key: K, value: SettingsData[K]): void }
+const storedAppearance = appearanceSchema.safeParse(settings.get('appearance'))
+if (!storedAppearance.success) settings.set('appearance', appearanceSchema.parse({ theme: legacyTheme }))
+else settings.set('appearance', storedAppearance.data)
+if ((settings.get('settingsVersion') ?? 0) < 2) settings.set('settingsVersion', 2)
 const active = new Map<string, ReturnType<typeof spawn>>()
 const mediaPaths = new Set<string>()
 const downloads = new Map<number, AbortController>()
@@ -270,13 +286,35 @@ function friendlyFfmpegError(log: string, code: number | null): string {
 function registerIpc() {
   ipcMain.handle('dialog:files', async () => (await dialog.showOpenDialog({ properties: ['openFile', 'multiSelections'], filters: [{ name: 'Медиа', extensions: ['mp4','mkv','mov','webm','avi','mp3','wav','flac','m4a','ogg','png','jpg','jpeg','webp','gif'] }] })).filePaths)
   ipcMain.handle('dialog:directory', async () => (await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] })).filePaths[0] ?? null)
-  ipcMain.handle('settings:get', () => ({ ffmpegPath: settings.get('ffmpegPath'), outputDir: settings.get('outputDir'), theme: settings.get('theme') ?? 'dark', proxy: settings.get('proxy') ?? '' }))
+  ipcMain.handle('settings:get', () => ({ ffmpegPath: settings.get('ffmpegPath'), outputDir: settings.get('outputDir'), theme: settings.get('appearance')?.theme ?? 'dark', proxy: settings.get('proxy') ?? '', appearance: settings.get('appearance') ?? defaultAppearance, appearanceProfiles: settings.get('appearanceProfiles') ?? [], settingsVersion: settings.get('settingsVersion') ?? 2 }))
   ipcMain.handle('settings:set', (_event, input: unknown) => {
-    const value = z.object({ ffmpegPath: localPathSchema.optional(), outputDir: localPathSchema.optional(), theme: z.enum(['dark','light','system']).optional(), proxy: z.string().max(500).optional() }).parse(input)
-    for (const [key, item] of Object.entries(value)) if (item !== undefined) settings.set(key, item)
+    const appearancePatch = appearanceSchema.partial().extend({ colors: appearanceSchema.shape.colors.optional(), hotkeys: appearanceSchema.shape.hotkeys.optional() })
+    const value = z.object({ ffmpegPath: localPathSchema.optional(), outputDir: localPathSchema.optional(), theme: z.enum(['dark','light','system']).optional(), proxy: z.string().max(500).optional(), appearance: appearancePatch.optional(), appearanceProfiles: z.array(z.object({ name: z.string().min(1).max(40), appearance: appearanceSchema })).max(20).optional() }).parse(input)
+    if (value.ffmpegPath !== undefined) settings.set('ffmpegPath', value.ffmpegPath)
+    if (value.outputDir !== undefined) settings.set('outputDir', value.outputDir)
+    if (value.proxy !== undefined) settings.set('proxy', value.proxy)
+    if (value.appearanceProfiles !== undefined) settings.set('appearanceProfiles', value.appearanceProfiles)
+    if (value.appearance || value.theme) {
+      const current = settings.get('appearance') ?? defaultAppearance
+      const appearance = appearanceSchema.parse({ ...current, ...value.appearance, theme: value.theme ?? value.appearance?.theme ?? current.theme, colors: { ...current.colors, ...value.appearance?.colors }, hotkeys: { ...current.hotkeys, ...value.appearance?.hotkeys } })
+      settings.set('appearance', appearance)
+      applyNativeAppearance(appearance)
+    }
     if (value.ffmpegPath !== undefined) void refreshFfmpegSelection()
     return true
   })
+  ipcMain.handle('appearance:background-image', async () => {
+    const choice = await dialog.showOpenDialog({ properties: ['openFile'], filters: [{ name: 'Фон', extensions: ['png', 'jpg', 'jpeg', 'webp'] }] })
+    const file = choice.filePaths[0]
+    if (!file) return null
+    const info = await stat(file)
+    if (info.size > 5 * 1024 * 1024) throw new Error('Размер изображения фона не должен превышать 5 МБ.')
+    const extension = path.extname(file).toLowerCase()
+    const mime = extension === '.png' ? 'image/png' : extension === '.webp' ? 'image/webp' : 'image/jpeg'
+    return `data:${mime};base64,${(await readFile(file)).toString('base64')}`
+  })
+  ipcMain.handle('app:info', () => ({ version: app.getVersion(), license: 'MIT', repository: 'https://github.com/Wenwu-PA/FfmpegUi', ffmpegLicense: 'FFmpeg лицензируется по LGPL или GPL в зависимости от выбранной сборки и её компонентов.' }))
+  ipcMain.handle('app:open-repository', () => shell.openExternal('https://github.com/Wenwu-PA/FfmpegUi'))
   ipcMain.handle('ffmpeg:install', async (event, input: unknown) => {
     const options = z.object({ build: z.enum(['essentials', 'full']), channel: z.enum(['stable', 'latest']) }).parse(input)
     const senderId = event.sender.id
@@ -506,11 +544,28 @@ function registerIpc() {
 
 async function createWindow() {
   const iconPath = app.isPackaged ? path.join(process.resourcesPath, 'icons', 'icon.png') : path.join(app.getAppPath(), 'build', 'icon.png')
-  mainWindow = new BrowserWindow({ width: 1440, height: 920, minWidth: 960, minHeight: 600, backgroundColor: '#0b0d12', title: 'FFmpeg Studio', icon: iconPath, webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true } })
+  const appearance = settings.get('appearance') ?? defaultAppearance
+  const savedBounds = appearance.rememberWindow ? settings.get('windowBounds') : undefined
+  mainWindow = new BrowserWindow({ width: savedBounds?.width ?? 1440, height: savedBounds?.height ?? 920, ...(savedBounds?.x === undefined ? {} : { x: savedBounds.x }), ...(savedBounds?.y === undefined ? {} : { y: savedBounds.y }), minWidth: 960, minHeight: 600, backgroundColor: '#0b0d12', title: 'FFmpeg Studio', icon: iconPath, webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true } })
+  applyNativeAppearance(appearance)
+  mainWindow.on('close', event => {
+    if (settings.get('appearance')?.rememberWindow) settings.set('windowBounds', mainWindow?.getBounds() ?? { width: 1440, height: 920 })
+    if (settings.get('appearance')?.minimizeToTray && !allowQuit) { event.preventDefault(); mainWindow?.hide() }
+  })
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   mainWindow.webContents.on('will-navigate', event => event.preventDefault())
   if (process.env.VITE_DEV_SERVER_URL) await mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL)
   else await mainWindow.loadFile(path.join(__dirname, '../../dist/index.html'))
+  if (appearance.startMinimized) mainWindow.minimize()
+}
+
+function applyNativeAppearance(appearance: Appearance) {
+  if (!mainWindow) return
+  mainWindow.setAlwaysOnTop(appearance.alwaysOnTop)
+  if (process.platform === 'win32') {
+    try { mainWindow.setBackgroundMaterial(appearance.background === 'mica' || appearance.background === 'acrylic' ? appearance.background : 'none') }
+    catch { /* Unsupported Windows builds fall back to the standard window surface. */ }
+  }
 }
 
 function createTray() {

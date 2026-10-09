@@ -3,6 +3,8 @@ import { Activity, AudioLines, Check, ChevronDown, ChevronUp, Clapperboard, Cloc
 import type { MediaFile, ProbeResult } from '../shared/types'
 import { buildFfmpegArgs } from '../shared/buildFfmpegArgs'
 import { calculateTargetVideoBitrateKbps } from '../shared/targetSize'
+import { appearanceSchema, defaultAppearance, palettes, paletteNames, readableAccentText, type Appearance } from '../shared/appearance'
+import faviconUrl from './favicon.png'
 
 type Section = 'converter' | 'merge' | 'queue' | 'history' | 'settings'
 type Preset = { id: 'web' | 'telegram' | 'h265' | 'mp3' | 'gif'; title: string; detail: string; extension: string; icon: typeof FileVideo2 }
@@ -24,6 +26,86 @@ const fileName = (file: string) => file.split(/[\\/]/).at(-1) ?? file
 const parseClock = (value: string) => value.split(':').reduce((seconds, part) => seconds * 60 + Number(part), 0)
 
 type FfmpegStatus = Awaited<ReturnType<typeof window.ffmpegStudio.ffmpegStatus>>
+function applyAppearance(value: Appearance) {
+  const dark = value.theme === 'system' ? window.matchMedia('(prefers-color-scheme: dark)').matches : value.theme === 'dark'
+  const preset = palettes[value.palette]
+  const source = value.palette === 'custom' ? value.colors : preset.colors
+  const colors = dark ? source : { ...source, background: '#f1f3f6', surface: '#ffffff', border: '#d5dbe3', text: '#202632', muted: '#596474' }
+  const root = document.documentElement
+  root.dataset.theme = dark ? 'dark' : 'light'
+  root.dataset.background = value.background
+  root.dataset.density = value.density
+  root.dataset.animations = String(value.animations && !window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+  root.dataset.sidebarPosition = value.sidebarPosition
+  root.style.setProperty('--bg', colors.background)
+  root.style.setProperty('--panel', colors.surface)
+  root.style.setProperty('--surface', colors.surface)
+  root.style.setProperty('--line', colors.border)
+  root.style.setProperty('--muted', colors.muted)
+  root.style.setProperty('--success', colors.success)
+  root.style.setProperty('--error', colors.error)
+  root.style.setProperty('--warning', colors.warning)
+  root.style.setProperty('--text', colors.text)
+  root.style.setProperty('--accent', value.accent)
+  root.style.setProperty('--accent-text', readableAccentText(value.accent))
+  root.style.setProperty('--radius', `${value.radius}px`)
+  root.style.setProperty('--ui-scale', String(value.scale))
+  root.style.setProperty('--border-width', `${value.borderWidth}px`)
+  root.style.setProperty('--shadow-strength', String(value.shadowStrength / 100))
+  root.style.setProperty('--glass-alpha', `${value.glassOpacity}%`)
+  root.style.setProperty('--glass-blur', `${value.glassBlur}px`)
+  root.style.setProperty('--custom-background-image', value.backgroundImage ? `url("${value.backgroundImage}")` : 'none')
+  root.style.setProperty('--ui-font', value.font === 'system' ? '"Segoe UI", system-ui, sans-serif' : value.font === 'inter' ? 'Inter, "Segoe UI", sans-serif' : value.font === 'aptos' ? 'Aptos, "Segoe UI", sans-serif' : 'Arial, sans-serif')
+  root.style.setProperty('--mono-font', value.monoFont === 'consolas' ? 'Consolas, monospace' : value.monoFont === 'cascadia' ? '"Cascadia Code", Consolas, monospace' : 'ui-monospace, Consolas, monospace')
+  root.style.setProperty('--animation-duration', value.animationSpeed === 'slow' ? '0.45s' : value.animationSpeed === 'fast' ? '0.12s' : '0.25s')
+}
+
+function AppearanceSettings({ value, onChange }: { value: Appearance; onChange: (value: Appearance) => void }) {
+  const [profiles, setProfiles] = useState<{ name: string; appearance: Appearance }[]>([])
+  const [profileName, setProfileName] = useState('Мой профиль')
+  const [notice, setNotice] = useState('')
+  useEffect(() => { void window.ffmpegStudio.getSettings().then(settings => setProfiles(settings.appearanceProfiles ?? [])) }, [])
+  const update = (patch: Partial<Appearance>) => onChange(appearanceSchema.parse({ ...value, ...patch }))
+  const updateColor = (key: keyof Appearance['colors'], color: string) => update({ palette: 'custom', colors: { ...value.colors, [key]: color } })
+  const updateHotkey = (key: keyof Appearance['hotkeys'], shortcut: string) => {
+    if (Object.entries(value.hotkeys).some(([other, current]) => other !== key && current.toLowerCase() === shortcut.toLowerCase())) { setNotice('Эта комбинация уже назначена другому действию.'); return }
+    update({ hotkeys: { ...value.hotkeys, [key]: shortcut } }); setNotice('')
+  }
+  const exportTheme = () => {
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' }))
+    link.download = 'ffmpeg-studio-theme.json'; link.click(); URL.revokeObjectURL(link.href)
+  }
+  const importTheme = async (file?: File) => {
+    if (!file) return
+    try { const parsed = appearanceSchema.safeParse(JSON.parse(await file.text())); if (!parsed.success) throw new Error('Файл не соответствует схеме темы.'); onChange(parsed.data); setNotice('Оформление импортировано.') }
+    catch (error) { setNotice(error instanceof Error ? error.message : 'Не удалось прочитать тему.') }
+  }
+  const saveProfile = async () => {
+    const next = [...profiles.filter(profile => profile.name !== profileName.trim()), { name: profileName.trim(), appearance: value }].slice(-20)
+    setProfiles(next); await window.ffmpegStudio.setSettings({ appearanceProfiles: next }); setNotice('Профиль оформления сохранён.')
+  }
+  const colors: [keyof Appearance['colors'], string][] = [['background','Фон'], ['surface','Поверхность'], ['border','Границы'], ['text','Текст'], ['muted','Вторичный текст'], ['success','Успех'], ['error','Ошибка'], ['warning','Предупреждение']]
+  return <section className="settings-card appearance-settings"><h2>Оформление</h2><p>Изменения применяются сразу и сохраняются автоматически.</p>
+    <div className="setting-row"><label className="field">Режим темы<select value={value.theme} onChange={event => update({ theme: event.target.value as Appearance['theme'] })}><option value="system">Системная</option><option value="light">Светлая</option><option value="dark">Тёмная</option></select></label><label className="field">Готовая палитра<select value={value.palette} onChange={event => { const palette = event.target.value as Appearance['palette']; update({ palette, colors: palettes[palette].colors, accent: palettes[palette].accent }) }}>{Object.entries(paletteNames).map(([id,name]) => <option value={id} key={id}>{name}</option>)}<option value="custom">Своя тема</option></select></label></div>
+    <div className="palette-swatches">{Object.entries(paletteNames).map(([id,name]) => <button key={id} className={`palette-swatch ${value.palette === id ? 'selected' : ''}`} title={name} style={{ background: palettes[id as keyof typeof palettes].accent }} onClick={() => update({ palette: id as Appearance['palette'], colors: palettes[id as keyof typeof palettes].colors, accent: palettes[id as keyof typeof palettes].accent })} />)}</div>
+    <div className="setting-row"><label className="field">Акцентный цвет<input type="color" value={value.accent} onChange={event => update({ palette: 'custom', accent: event.target.value })} /></label><label className="field">HEX<input value={value.accent} onChange={event => { if (/^#[\da-f]{6}$/i.test(event.target.value)) update({ palette: 'custom', accent: event.target.value }) }} /></label><span className="contrast-preview" style={{ background: value.accent, color: readableAccentText(value.accent) }}>Текст с проверенным контрастом</span></div>
+    <details className="appearance-details"><summary>Цвета своей темы</summary><div className="color-editor">{colors.map(([key,label]) => <label key={key}>{label}<input type="color" value={value.colors[key]} onChange={event => updateColor(key,event.target.value)} /></label>)}</div></details>
+    <div className="setting-row"><label className="field">Фон приложения<select value={value.background} onChange={event => update({ background: event.target.value as Appearance['background'] })}><option value="solid">Сплошной</option><option value="gradient">Градиент</option><option value="glass">Стекло</option><option value="image">Своя картинка</option><option value="mica">Mica (Windows 11)</option><option value="acrylic">Acrylic (Windows 11)</option></select></label>{value.background === 'image' && <button className="secondary-button" onClick={() => void window.ffmpegStudio.chooseBackgroundImage().then(image => image && update({ backgroundImage: image }))}>Выбрать изображение</button>}</div>
+    {(value.background === 'glass' || value.background === 'image') && <div className="setting-row"><label className="field">Прозрачность<input type="range" min="20" max="100" value={value.glassOpacity} onChange={event => update({ glassOpacity: Number(event.target.value) })} /></label><label className="field">Размытие<input type="range" min="0" max="32" value={value.glassBlur} onChange={event => update({ glassBlur: Number(event.target.value) })} /></label></div>}
+    <div className="setting-row appearance-sliders"><label className="field">Скругление: {value.radius}px<input type="range" min="0" max="24" value={value.radius} onChange={event => update({ radius: Number(event.target.value) })} /></label><label className="field">Границы: {value.borderWidth}px<input type="range" min="0" max="2" step="0.5" value={value.borderWidth} onChange={event => update({ borderWidth: Number(event.target.value) })} /></label><label className="field">Тени: {value.shadowStrength}%<input type="range" min="0" max="100" value={value.shadowStrength} onChange={event => update({ shadowStrength: Number(event.target.value) })} /></label></div>
+    <div className="setting-row"><label className="field">Плотность<select value={value.density} onChange={event => update({ density: event.target.value as Appearance['density'] })}><option value="compact">Компактная</option><option value="normal">Обычная</option><option value="spacious">Свободная</option></select></label><label className="field">Шрифт<select value={value.font} onChange={event => update({ font: event.target.value as Appearance['font'] })}><option value="system">Системный</option><option value="inter">Inter</option><option value="aptos">Aptos</option><option value="arial">Arial</option></select></label><label className="field">Моноширинный<select value={value.monoFont} onChange={event => update({ monoFont: event.target.value as Appearance['monoFont'] })}><option value="system">Системный</option><option value="consolas">Consolas</option><option value="cascadia">Cascadia Code</option></select></label><label className="field">Масштаб: {Math.round(value.scale * 100)}%<input type="range" min="80" max="150" value={Math.round(value.scale * 100)} onChange={event => update({ scale: Number(event.target.value) / 100 })} /></label></div>
+    <div className="setting-row"><label className="field">Панель навигации<select value={value.sidebarPosition} onChange={event => update({ sidebarPosition: event.target.value as Appearance['sidebarPosition'] })}><option value="left">Слева</option><option value="right">Справа</option></select></label><label><input type="checkbox" checked={value.sidebarCollapsed} onChange={event => update({ sidebarCollapsed: event.target.checked })} /> Свёрнутая панель</label><label><input type="checkbox" checked={value.sidebarLabels} onChange={event => update({ sidebarLabels: event.target.checked })} /> Подписи разделов</label></div>
+    <details className="appearance-details"><summary>Разделы боковой панели</summary><p>Перетаскивайте разделы в панели для изменения порядка.</p><div className="setting-row">{nav.map(item => <label key={item.id}><input type="checkbox" checked={!value.hiddenSections.includes(item.id)} onChange={event => update({ hiddenSections: event.target.checked ? value.hiddenSections.filter(id => id !== item.id) : [...value.hiddenSections, item.id] })} /> {item.title}</label>)}</div></details>
+    <div className="setting-row"><label><input type="checkbox" checked={value.animations} onChange={event => update({ animations: event.target.checked })} /> Анимации</label><label className="field">Скорость анимации<select value={value.animationSpeed} onChange={event => update({ animationSpeed: event.target.value as Appearance['animationSpeed'] })}><option value="slow">Медленно</option><option value="normal">Обычная</option><option value="fast">Быстро</option></select></label><label><input type="checkbox" checked={value.alwaysOnTop} onChange={event => update({ alwaysOnTop: event.target.checked })} /> Поверх окон</label><label><input type="checkbox" checked={value.minimizeToTray} onChange={event => update({ minimizeToTray: event.target.checked })} /> Сворачивать в трей</label><label><input type="checkbox" checked={value.startMinimized} onChange={event => update({ startMinimized: event.target.checked })} /> Запускать свёрнутым</label><label><input type="checkbox" checked={value.rememberWindow} onChange={event => update({ rememberWindow: event.target.checked })} /> Запоминать окно</label></div>
+    <details className="appearance-details"><summary>Горячие клавиши</summary><div className="setting-row">{(['convert','open','settings'] as const).map(key => <label key={key} className="field">{{ convert: 'Запуск', open: 'Добавить файлы', settings: 'Настройки' }[key]}<input value={value.hotkeys[key]} onChange={event => updateHotkey(key,event.target.value)} /></label>)}</div><small>Не назначайте одну комбинацию двум действиям. Например: Ctrl+Enter, Ctrl+O, Ctrl+,.</small></details>
+    <div className="setting-row profile-row"><input value={profileName} onChange={event => setProfileName(event.target.value)} aria-label="Имя профиля" /><button className="secondary-button" onClick={() => void saveProfile()}>Сохранить профиль</button><select value="" onChange={event => { const profile = profiles.find(item => item.name === event.target.value); if (profile) onChange(profile.appearance) }}><option value="" disabled>Выбрать профиль…</option>{profiles.map(profile => <option key={profile.name} value={profile.name}>{profile.name}</option>)}</select></div>
+    <div className="setting-row"><button className="secondary-button" onClick={exportTheme}>Экспорт JSON</button><label className="secondary-button import-theme">Импорт JSON<input type="file" accept="application/json,.json" onChange={event => void importTheme(event.target.files?.[0])} /></label><button className="secondary-button" onClick={() => { if (window.confirm('Сбросить все параметры оформления?')) onChange(defaultAppearance) }}>Сбросить всё оформление</button></div>
+    <div className="appearance-preview"><strong>Предпросмотр</strong><span>Текст · вторичный текст</span><button className="primary-button">Акцент</button><span className="engine-dot ready" /></div>
+    {notice && <p role="status">{notice}</p>}
+  </section>
+}
+
 function FfmpegSettings({ status, onStatus }: { status: FfmpegStatus; onStatus: (status: FfmpegStatus) => void }) {
   const [build, setBuild] = useState<'essentials' | 'full'>('essentials')
   const [channel, setChannel] = useState<'stable' | 'latest'>('stable')
@@ -66,8 +148,15 @@ function FfmpegSettings({ status, onStatus }: { status: FfmpegStatus; onStatus: 
   </section>
 }
 
+function AboutSettings() {
+  const [info, setInfo] = useState<{ version: string; license: string; ffmpegLicense: string } | null>(null)
+  useEffect(() => { void window.ffmpegStudio.appInfo().then(setInfo) }, [])
+  return <section className="settings-card about-settings"><h2>О программе</h2><div className="about-mark"><img src={faviconUrl} alt="Логотип FFmpeg Studio" /><div><strong>FFmpeg Studio</strong><span>Версия {info?.version ?? '…'}</span></div></div><p>Лицензия приложения: {info?.license ?? 'MIT'}.</p><p>{info?.ffmpegLicense}</p><button className="secondary-button" onClick={() => void window.ffmpegStudio.openRepository()}>Открыть репозиторий</button></section>
+}
+
 export function App() {
   const [section, setSection] = useState<Section>('converter')
+  const [appearance, setAppearance] = useState<Appearance>(defaultAppearance)
   const [files, setFiles] = useState<MediaFile[]>([])
   const [preset, setPreset] = useState<Preset>(presets[0]!)
   const [targetFormat, setTargetFormat] = useState('mp4')
@@ -86,13 +175,27 @@ export function App() {
   const [toast, setToast] = useState('')
   const queuePausedRef = useRef(false)
 
+  const changeAppearance = (value: Appearance) => {
+    setAppearance(value); applyAppearance(value)
+    void window.ffmpegStudio.setSettings({ appearance: value }).catch(error => setToast(error instanceof Error ? error.message : 'Не удалось сохранить оформление.'))
+  }
+
   useEffect(() => {
-    void window.ffmpegStudio.getSettings().then(settings => { if (settings.outputDir) setOutputDir(settings.outputDir) })
+    void window.ffmpegStudio.getSettings().then(settings => { if (settings.outputDir) setOutputDir(settings.outputDir); if (settings.appearance) { setAppearance(settings.appearance); applyAppearance(settings.appearance) } })
     void window.ffmpegStudio.ffmpegStatus().then(setFfmpeg)
     const unsubscribeProgress = window.ffmpegStudio.onProgress(progress => setJobs(current => current.map(job => job.id === progress.id ? { ...job, progress: progress.percent } : job)))
     const unsubscribeQueue = window.ffmpegStudio.onQueuePause(paused => { queuePausedRef.current = paused })
     return () => { unsubscribeProgress(); unsubscribeQueue() }
   }, [])
+  useEffect(() => {
+    const listener = () => applyAppearance(appearance)
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    media.addEventListener('change', listener)
+    return () => media.removeEventListener('change', listener)
+  }, [appearance])
+  useEffect(() => {
+    if (appearance.hiddenSections.includes(section)) setSection(appearance.sidebarSections.find(id => !appearance.hiddenSections.includes(id)) ?? 'converter')
+  }, [appearance.hiddenSections, appearance.sidebarSections, section])
 
   const outputPath = useMemo(() => outputDir || 'Папка с исходным файлом', [outputDir])
   const addFiles = async (paths: string[]) => {
@@ -172,11 +275,25 @@ export function App() {
     setSection('queue')
   }
 
-  return <div className="app-shell" onDragOver={event => { event.preventDefault(); setDragging(true) }} onDragLeave={event => { if (event.currentTarget === event.target) setDragging(false) }} onDrop={handleDrop}>
+  const hotkeyActions = useRef({ convert, addFiles })
+  hotkeyActions.current = { convert, addFiles }
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      const combo = `${event.ctrlKey || event.metaKey ? 'Ctrl+' : ''}${event.shiftKey ? 'Shift+' : ''}${event.altKey ? 'Alt+' : ''}${event.key === 'Enter' ? 'Enter' : event.key.toUpperCase()}`
+      const configured = appearance.hotkeys
+      if (combo.toLowerCase() === configured.convert.toLowerCase()) { event.preventDefault(); void hotkeyActions.current.convert() }
+      else if (combo.toLowerCase() === configured.open.toLowerCase()) { event.preventDefault(); void window.ffmpegStudio.chooseFiles().then(hotkeyActions.current.addFiles) }
+      else if (combo.toLowerCase() === configured.settings.toLowerCase()) { event.preventDefault(); setSection('settings') }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [appearance.hotkeys])
+
+  return <div className={`app-shell ${appearance.sidebarCollapsed ? 'sidebar-collapsed' : ''}`} data-sidebar-position={appearance.sidebarPosition} onDragOver={event => { event.preventDefault(); setDragging(true) }} onDragLeave={event => { if (event.currentTarget === event.target) setDragging(false) }} onDrop={handleDrop}>
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark"><Clapperboard size={20} strokeWidth={2.2} /></div><div><div className="brand-name">FFmpeg <span>Studio</span></div><div className="brand-caption">VIDEO WORKSPACE</div></div></div>
       <div className="workspace-label">РАБОЧЕЕ ПРОСТРАНСТВО</div>
-      <nav className="nav-list">{nav.map(item => <button key={item.id} className={`nav-item ${section === item.id ? 'active' : ''}`} onClick={() => setSection(item.id)}><item.icon size={17} /><span>{item.title}</span>{item.id === 'queue' && jobs.some(job => job.status === 'working') && <span className="nav-count">{jobs.filter(job => job.status === 'working').length}</span>}</button>)}</nav>
+      <nav className="nav-list">{appearance.sidebarSections.filter(id => !appearance.hiddenSections.includes(id)).map(id => nav.find(item => item.id === id)!).map(item => <button key={item.id} draggable title={item.title} className={`nav-item ${section === item.id ? 'active' : ''}`} onDragStart={event => event.dataTransfer.setData('text/sidebar-section', item.id)} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); event.stopPropagation(); const from = event.dataTransfer.getData('text/sidebar-section') as Section; const order = [...appearance.sidebarSections]; const oldIndex = order.indexOf(from); const newIndex = order.indexOf(item.id); if (oldIndex >= 0 && newIndex >= 0) { order.splice(oldIndex, 1); order.splice(newIndex, 0, from); changeAppearance({ ...appearance, sidebarSections: order }) } }} onClick={() => setSection(item.id)}><item.icon size={17} />{appearance.sidebarLabels && <span>{item.title}</span>}{item.id === 'queue' && jobs.some(job => job.status === 'working') && <span className="nav-count">{jobs.filter(job => job.status === 'working').length}</span>}</button>)}</nav>
       <div className="sidebar-bottom"><div className="engine-card"><div className={`engine-dot ${ffmpeg.available ? 'ready' : ''}`} /><div><strong>{ffmpeg.available ? 'FFmpeg готов' : 'FFmpeg не найден'}</strong><span>{ffmpeg.available ? ffmpeg.version.replace('ffmpeg version ', 'версия ') : 'укажите путь в настройках'}</span></div><MoreHorizontal size={15} /></div><div className="user-card"><div className="avatar">WS</div><div><strong>Локальная сессия</strong><span>Обработка на устройстве</span></div><ShieldCheck size={15} className="shield" /></div></div>
     </aside>
     <main className="main-area">
@@ -201,7 +318,7 @@ export function App() {
         {section === 'merge' && <><section className="page-heading"><div><div className="eyebrow"><Clapperboard size={13} /> ВИДЕО-МОНТАЖ</div><h1>Склейка видео</h1><p>Объедините видео с одинаковыми кодеками, разрешением и частотой кадров.</p></div><button className="secondary-button" onClick={() => void window.ffmpegStudio.chooseFiles().then(addFiles)}><Plus size={15} /> Добавить видео</button></section><div className="merge-list">{files.filter(file => !file.error && file.probe?.streams.some(stream => stream.codec_type === 'video')).map((file, index, items) => <article className="merge-item" key={file.path}><span className="merge-index">{index + 1}</span><div className="merge-file"><strong>{file.name}</strong><span>{file.probe?.streams.find(stream => stream.codec_type === 'video')?.codec_name} · {file.probe?.streams.find(stream => stream.codec_type === 'video')?.width} × {file.probe?.streams.find(stream => stream.codec_type === 'video')?.height} · {formatTime(file.probe?.format.duration)}</span></div><button className="small-icon" aria-label="Переместить выше" disabled={index === 0} onClick={() => setFiles(current => { const videoFiles = current.filter(item => item.probe?.streams.some(stream => stream.codec_type === 'video')); const [moved] = videoFiles.splice(index, 1); videoFiles.splice(index - 1, 0, moved!); return [...videoFiles, ...current.filter(item => !item.probe?.streams.some(stream => stream.codec_type === 'video'))] })}><ChevronUp size={15} /></button><button className="small-icon" aria-label="Переместить ниже" disabled={index === items.length - 1} onClick={() => setFiles(current => { const videoFiles = current.filter(item => item.probe?.streams.some(stream => stream.codec_type === 'video')); const [moved] = videoFiles.splice(index, 1); videoFiles.splice(index + 1, 0, moved!); return [...videoFiles, ...current.filter(item => !item.probe?.streams.some(stream => stream.codec_type === 'video'))] })}><ChevronDown size={15} /></button></article>)}</div><div className="merge-hint"><ShieldCheck size={16} /><span>Быстрая склейка без перекодирования. Все клипы должны иметь совместимые параметры потоков.</span></div><button className="primary-button" disabled={files.filter(file => file.probe?.streams.some(stream => stream.codec_type === 'video')).length < 2 || !ffmpeg.available} onClick={() => void mergeFiles()}><Play size={15} fill="currentColor" /> Склеить видео</button></>}
         {section === 'queue' && <><section className="page-heading"><div><div className="eyebrow"><Activity size={13} /> ПРОЦЕССЫ</div><h1>Очередь задач</h1><p>Следите за ходом обработки файлов.</p></div><button className="secondary-button" onClick={() => setSection('converter')}><Plus size={15} /> Новая задача</button></section>{jobs.length ? <div className="jobs-list">{jobs.map(job => <article className="job-card" key={job.id}><div className="job-icon">{job.status === 'done' ? <Check size={18} /> : job.status === 'error' || job.status === 'cancelled' ? <X size={18} /> : <Clapperboard size={18} />}</div><div className="job-body"><div className="job-title"><strong>{job.name}</strong><span>{job.status === 'working' ? 'Обработка' : job.status === 'done' ? 'Готово' : job.status === 'cancelled' ? 'Отменено' : 'Ошибка'}</span></div>{job.error && <p className="job-error">{job.error}</p>}<div className="progress-track"><span style={{ width: `${job.progress}%` }} /></div><div className="job-caption"><span>{Math.floor(job.progress)}% выполнено</span>{job.status === 'working' ? <button className="cancel-button" onClick={() => { setJobs(current => current.map(item => item.id === job.id ? { ...item, status: 'cancelled' } : item)); void window.ffmpegStudio.cancel(job.id) }}>Отменить</button> : <span />}</div></div></article>)}</div> : <div className="empty-state"><div className="empty-icon"><Activity size={24} /></div><h3>Очередь пока пуста</h3><p>Добавьте файлы в конвертер, чтобы начать обработку.</p><button className="primary-button" onClick={() => setSection('converter')}><Plus size={15} /> Добавить файлы</button></div>}</>}
         {section === 'history' && <><section className="page-heading"><div><div className="eyebrow"><History size={13} /> НЕДАВНИЕ ФАЙЛЫ</div><h1>История</h1><p>Недавние задачи этой сессии.</p></div></section><div className="empty-state"><div className="empty-icon"><Clock3 size={24} /></div><h3>Здесь появятся завершённые задачи</h3><p>История между перезапусками пока не сохраняется.</p></div></>}
-        {section === 'settings' && <><section className="page-heading"><div><div className="eyebrow"><Settings2 size={13} /> ПРИЛОЖЕНИЕ</div><h1>Настройки</h1><p>Пути к инструментам и параметры обработки.</p></div></section><FfmpegSettings status={ffmpeg} onStatus={setFfmpeg} /><section className="settings-card"><h2>Папка вывода по умолчанию</h2><p>Можно заменить для каждой задачи отдельно.</p><div className="setting-row"><div className="setting-path"><strong>{outputDir || 'Рядом с исходным файлом'}</strong></div><button className="secondary-button" onClick={() => void window.ffmpegStudio.chooseDirectory().then(path => { if (path) { setOutputDir(path); void window.ffmpegStudio.setSettings({ outputDir: path }) } })}>Выбрать папку</button></div></section><div className="privacy-note"><ShieldCheck size={18} /><span><strong>Конфиденциальность по умолчанию</strong>Файлы обрабатываются локально. Приложение не отправляет телеметрию.</span></div></>}
+        {section === 'settings' && <><section className="page-heading"><div><div className="eyebrow"><Settings2 size={13} /> ПРИЛОЖЕНИЕ</div><h1>Настройки</h1><p>Пути к инструментам и параметры обработки.</p></div></section><AppearanceSettings value={appearance} onChange={changeAppearance} /><FfmpegSettings status={ffmpeg} onStatus={setFfmpeg} /><section className="settings-card"><h2>Папка вывода по умолчанию</h2><p>Можно заменить для каждой задачи отдельно.</p><div className="setting-row"><div className="setting-path"><strong>{outputDir || 'Рядом с исходным файлом'}</strong></div><button className="secondary-button" onClick={() => void window.ffmpegStudio.chooseDirectory().then(path => { if (path) { setOutputDir(path); void window.ffmpegStudio.setSettings({ outputDir: path }) } })}>Выбрать папку</button></div></section><div className="privacy-note"><ShieldCheck size={18} /><span><strong>Конфиденциальность по умолчанию</strong>Файлы обрабатываются локально. Приложение не отправляет телеметрию.</span></div><AboutSettings /></>}
       </div>
     </main>
     {dragging && <div className="drag-overlay"><div><Upload size={34} /><strong>Отпустите файлы, чтобы добавить</strong><span>Видео, аудио или изображения</span></div></div>}
