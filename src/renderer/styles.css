@@ -189,19 +189,27 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 :root { color: var(--text); font-family: var(--ui-font); font-size: calc(13px * var(--ui-scale)); }
 body { background: var(--bg); color: var(--text); font-family: var(--ui-font); }
 .app-shell { background-color: var(--bg); color: var(--text); }
-.sidebar { background: var(--surface); border-color: var(--line); }
-.settings-card,.file-card,.merge-item,.job-card,.history-item,.queue-card { border-color: var(--line); border-width: var(--border-width); border-radius: var(--radius); background-color: color-mix(in srgb, var(--surface) 94%, transparent); }
+.sidebar { background: var(--sidebar-surface); border-color: var(--line); }
+.settings-card,.file-card,.merge-item,.job-card,.history-item,.queue-card { border-color: var(--line); border-width: var(--border-width); background-color: var(--surface); }
+.settings-card { border-radius: var(--radius); }
+.file-card { border-radius: calc(var(--radius) * .9); }
+.merge-item { border-radius: calc(var(--radius) * .8); }
+.job-card,.history-item,.queue-card { border-radius: var(--radius); }
 .settings-card h2,.section-header h2 { color: var(--text); }
 .settings-card>p,.section-header p { color: var(--muted); }
-.primary-button { background: var(--accent); color: var(--accent-text); border-radius: calc(var(--radius) * .65); }
-.secondary-button,.small-icon,.field input,.field select,.setting-path { border-color: var(--line); border-radius: calc(var(--radius) * .55); color: var(--text); }
-.field input,.field select { background: var(--surface); }
+:root[data-theme="dark"][data-palette="graphite"] .settings-card h2,:root[data-theme="dark"][data-palette="graphite"] .section-header h2 { color: #e1e4eb; }
+:root[data-theme="dark"][data-palette="graphite"] .settings-card>p,:root[data-theme="dark"][data-palette="graphite"] .section-header p { color: #727a87; }
+.primary-button { background: var(--accent); color: var(--accent-text); border-radius: calc(var(--radius) * .8); }
+.secondary-button,.setting-path { border-color: var(--button-border); border-radius: calc(var(--radius) * .8); color: var(--button-text); }
+.small-icon { border-radius: calc(var(--radius) * .7); color: var(--icon-muted); }
+.field input:not([type="range"]):not([type="checkbox"]),.field select { border-color: var(--control-border); border-radius: calc(var(--radius) * .6); color: var(--control-text); }
+.field input,.field select { background: var(--control-surface); }
 :root[data-theme="light"] .main-area,:root[data-theme="light"] .content-scroll { background: var(--bg); }
 :root[data-theme="light"] .nav-item,:root[data-theme="light"] .brand-name,:root[data-theme="light"] .page-heading h1 { color: var(--text); }
 :root[data-theme="light"] .nav-item:hover,:root[data-theme="light"] .nav-item.active { background: color-mix(in srgb, var(--accent) 13%, var(--surface)); color: var(--text); }
 :root[data-theme="light"] .settings-card,:root[data-theme="light"] .file-card,:root[data-theme="light"] .merge-item,:root[data-theme="light"] .job-card { box-shadow: 0 5px 18px rgba(20,30,45,calc(var(--shadow-strength) * .09)); }
-:root[data-background="gradient"] .app-shell { background-image: radial-gradient(ellipse at 82% 6%,color-mix(in srgb,var(--accent) 13%,transparent),transparent 43%),linear-gradient(140deg,var(--bg),color-mix(in srgb,var(--bg) 87%,var(--accent))); }
-:root[data-background="image"] .app-shell { background-image: linear-gradient(rgba(8,12,18,.72),rgba(8,12,18,.78)),var(--custom-background-image); background-size: cover; background-position: center; background-attachment: fixed; }
+:root[data-background="gradient"] .app-shell { background-image: radial-gradient(ellipse at 74% -30%, #172019, transparent 42%),var(--bg); }
+:root[data-background="image"] .app-shell { background-image: radial-gradient(ellipse at 74% -30%, #172019, transparent 42%),var(--bg); }
 :root[data-background="glass"] .settings-card,:root[data-background="glass"] .file-card,:root[data-background="glass"] .merge-item,:root[data-background="glass"] .job-card { background: color-mix(in srgb,var(--surface) var(--glass-alpha),transparent); backdrop-filter: blur(var(--glass-blur)); }
 :root[data-background="acrylic"] .settings-card,:root[data-background="acrylic"] .file-card,:root[data-background="acrylic"] .merge-item,:root[data-background="acrylic"] .job-card { background: color-mix(in srgb,var(--surface) 76%,var(--accent) 4%); backdrop-filter: blur(18px) saturate(1.35); }
 :root[data-density="compact"] .settings-card,:root[data-density="compact"] .file-card,:root[data-density="compact"] .job-card { padding: 11px; margin-bottom: 8px; }
@@ -216,6 +224,10 @@ body { background: var(--bg); color: var(--text); font-family: var(--ui-font); }
 .sidebar-collapsed .nav-count { display: none; }
 .appearance-settings { overflow: hidden; }
 .appearance-settings h2 { margin-bottom: 4px; }
+.appearance-settings .appearance-details summary { font-size: 13px; padding-block: 3px; }
+.appearance-settings .field { font-size: 12px; }
+.appearance-settings .field select,.appearance-settings .field input:not([type="range"]):not([type="checkbox"]) { min-height: 36px; padding: 8px 10px; font-size: 12px; }
+.appearance-settings .setting-row>label:not(.field) { font-size: 12px; }
 .setting-row { align-items: end; }
 .setting-row>.field { flex: 1; min-width: 135px; }
 .setting-row .field select,.setting-row .field input { width: 100%; box-sizing: border-box; }
@@ -223,12 +235,12 @@ body { background: var(--bg); color: var(--text); font-family: var(--ui-font); }
 .appearance-details summary { cursor: pointer; color: var(--text); font-size: 11px; font-weight: 600; }
 .appearance-details small { display: block; margin-top: 8px; color: var(--muted); }
 .palette-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
-.palette-swatch { display: flex; align-items: center; gap: 7px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); cursor: pointer; }
+.palette-swatch { display: flex; align-items: center; gap: 9px; min-height: 36px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 12px; cursor: pointer; }
 .palette-swatch.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.palette-swatch i { width: 13px; height: 13px; border-radius: 50%; background: var(--swatch); }
+.palette-swatch i { width: 16px; height: 16px; border-radius: 50%; background: var(--swatch); }
 .color-editor { display: grid; grid-template-columns: repeat(auto-fit,minmax(130px,1fr)); gap: 8px; padding-top: 12px; }
-.color-editor label { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 10px; }
-.color-editor input[type="color"] { width: 35px; height: 26px; padding: 2px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); }
+.color-editor label { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 12px; }
+.color-editor input[type="color"] { width: 42px; height: 32px; padding: 2px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); }
 .appearance-preview { display: flex; align-items: center; gap: 10px; margin-top: 13px; padding: 11px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); }
 .appearance-preview>span { color: var(--muted); font-family: var(--mono-font); }
 .appearance-preview .primary-button { margin-left: auto; }
@@ -240,6 +252,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--ui-font); }
 @media(max-width:800px) { .setting-row { flex-wrap: wrap; } .sidebar-collapsed .sidebar { width: 56px; min-width: 56px; } }
 
 :root[data-background="image"] .app-shell { background-image: radial-gradient(ellipse at 74% -30%,#172019,transparent 42%),var(--bg); isolation: isolate; }
+:root[data-background="image"] .main-area,:root[data-background="image"] .content-scroll { background: transparent !important; }
 :root[data-background="image"] .app-shell::before { content: ""; position: absolute; z-index: 0; inset: -24px; pointer-events: none; background-image: linear-gradient(rgba(8,12,18,var(--background-dim)),rgba(8,12,18,var(--background-dim))),var(--app-bg-image); background-size: cover; background-position: center; background-attachment: fixed; filter: blur(var(--glass-blur)); }
 :root[data-background="image"] .app-shell>aside,:root[data-background="image"] .app-shell>.main-area { position: relative; z-index: 1; }
 :root[data-background="image"] .sidebar { background: color-mix(in srgb,var(--surface) 72%,transparent); backdrop-filter: blur(12px); }

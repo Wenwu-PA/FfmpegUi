@@ -33,6 +33,7 @@ function applyAppearance(value: Appearance) {
   const colors = dark ? source : { ...source, background: '#f1f3f6', surface: '#ffffff', border: '#d5dbe3', text: '#202632', muted: '#596474' }
   const root = document.documentElement
   root.dataset.theme = dark ? 'dark' : 'light'
+  root.dataset.palette = value.palette
   root.dataset.background = value.background
   root.dataset.density = value.density
   root.dataset.animations = String(value.animations && !window.matchMedia('(prefers-reduced-motion: reduce)').matches)
@@ -42,6 +43,13 @@ function applyAppearance(value: Appearance) {
   root.style.setProperty('--surface', colors.surface)
   root.style.setProperty('--line', colors.border)
   root.style.setProperty('--muted', colors.muted)
+  root.style.setProperty('--sidebar-surface', dark && value.palette === 'graphite' ? '#0e1016' : colors.surface)
+  root.style.setProperty('--control-surface', dark && value.palette === 'graphite' ? '#171b23' : colors.surface)
+  root.style.setProperty('--control-border', dark && value.palette === 'graphite' ? '#303744' : colors.border)
+  root.style.setProperty('--button-border', dark && value.palette === 'graphite' ? '#343b47' : colors.border)
+  root.style.setProperty('--control-text', dark && value.palette === 'graphite' ? '#d1d5de' : colors.text)
+  root.style.setProperty('--button-text', dark && value.palette === 'graphite' ? '#cdd1d9' : colors.text)
+  root.style.setProperty('--icon-muted', dark && value.palette === 'graphite' ? '#858c99' : colors.muted)
   root.style.setProperty('--success', colors.success)
   root.style.setProperty('--error', colors.error)
   root.style.setProperty('--warning', colors.warning)

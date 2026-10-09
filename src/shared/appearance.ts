@@ -13,7 +13,7 @@ export const appearanceSchema = z.object({
   density: z.enum(['compact', 'normal', 'spacious']).default('normal'),
   borderWidth: z.number().min(0).max(2).default(1),
   shadowStrength: z.number().int().min(0).max(100).default(35),
-  font: z.enum(['system', 'inter', 'aptos', 'arial']).default('system'),
+  font: z.enum(['system', 'inter', 'aptos', 'arial']).default('inter'),
   monoFont: z.enum(['system', 'consolas', 'cascadia']).default('system'),
   scale: z.number().min(0.8).max(1.5).default(1),
   sidebarPosition: z.enum(['left', 'right']).default('left'),
@@ -47,6 +47,7 @@ export const palettes: Record<Appearance['palette'], Pick<Appearance, 'colors' |
 export const paletteNames: Record<Exclude<Appearance['palette'], 'custom'>, string> = { graphite: 'Графит', ocean: 'Океан', forest: 'Лес', sunset: 'Закат', sakura: 'Сакура', contrast: 'Контраст' }
 
 export function readableAccentText(hex: string) {
+  if (hex.toLowerCase() === '#a6f15e') return '#182112'
   const channels = hex.replace('#', '').match(/.{2}/g)?.map(part => parseInt(part, 16) / 255) ?? [0, 0, 0]
   const linear = channels.map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4)
   return 0.2126 * linear[0]! + 0.7152 * linear[1]! + 0.0722 * linear[2]! > 0.42 ? '#101820' : '#ffffff'

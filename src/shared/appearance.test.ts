@@ -5,6 +5,7 @@ describe('appearance preferences', () => {
   it('provides valid defaults for every supported setting', () => {
     expect(appearanceSchema.parse({})).toEqual(defaultAppearance)
     expect(Object.keys(palettes)).toHaveLength(7)
+    expect(defaultAppearance).toMatchObject({ theme: 'dark', palette: 'graphite', background: 'gradient', font: 'inter', density: 'normal', radius: 10, borderWidth: 1, scale: 1 })
   })
 
   it('rejects unsafe values outside the supported ranges', () => {
