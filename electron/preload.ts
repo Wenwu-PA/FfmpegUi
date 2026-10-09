@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('ffmpegStudio', {
   probe: (file: string) => ipcRenderer.invoke('media:probe', file),
   thumbnail: (file: string) => ipcRenderer.invoke('media:thumbnail', file) as Promise<string>,
   convert: (job: unknown) => ipcRenderer.invoke('media:convert', job),
+  merge: (job: unknown) => ipcRenderer.invoke('media:merge', job),
+  compress: (job: unknown) => ipcRenderer.invoke('media:compress', job),
   cancel: (id: string) => ipcRenderer.invoke('job:cancel', id),
   ffmpegStatus: () => ipcRenderer.invoke('ffmpeg:status'),
   reveal: (file: string) => ipcRenderer.invoke('app:reveal', file),
