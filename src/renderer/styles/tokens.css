@@ -8,6 +8,8 @@
   --surface-3: #202631;
   --surface-4: #272e3a;
   --surface-raised: #10131a;
+  --card-surface: var(--bg);
+  --inset-surface: var(--bg);
   --sidebar-surface: #0e1016;
   --control-surface: #171b23;
   --control-border: #303744;
@@ -29,6 +31,8 @@
   --text-inverse: #ffffff;
   --accent: #a6f15e;
   --accent-contrast: #182112;
+  --accent-text: #182112;
+  --accent-text-color: var(--accent);
   --accent-soft: #a6f15e12;
   --accent-hover: #b5f97a;
   --accent-border: #a6f15e19;
@@ -47,6 +51,7 @@
   --shadow-md: 0 10px 32px #0008;
   --shadow-lg: 0 18px 48px #000a;
   --shadow-soft: 0 5px 18px rgba(20, 30, 45, 0.09);
+  --card-shadow: none;
   --app-background-gradient: radial-gradient(ellipse at 74% -30%, #172019, transparent 42%), var(--bg);
   --dropzone-gradient: linear-gradient(105deg, #151920a8, #12151bb3);
   --selected-gradient: linear-gradient(100deg, #9edb5710, #12171b);
@@ -87,6 +92,7 @@
   --ui-scale: 1;
   --font-base: 13px;
   --font-body: Inter, "Segoe UI", system-ui, sans-serif;
+  --letter-spacing-tight: -0.025em;
   --ui-font: var(--font-body);
   --mono-font: ui-monospace, Consolas, monospace;
   --radius: 10px;

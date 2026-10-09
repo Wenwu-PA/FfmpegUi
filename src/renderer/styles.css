@@ -9,6 +9,10 @@ body {
   margin: 0;
   min-width: var(--measure-960);
   min-height: var(--measure-600);
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
 }
 
 button,
@@ -16,14 +20,14 @@ select {
   font: inherit;
 }
 
-:root[data-theme='light'] * {
-  scrollbar-color: var(--border-strong) var(--bg);
-  scrollbar-width: thin;
-}
-
 :root[data-theme='light'] *::-webkit-scrollbar {
   width: var(--measure-8);
   height: var(--measure-8);
+}
+
+:root[data-theme='light'] * {
+  scrollbar-color: var(--border-strong) var(--bg);
+  scrollbar-width: thin;
 }
 
 :root[data-theme='light'] *::-webkit-scrollbar-track {
@@ -71,20 +75,26 @@ select:focus-visible {
 }
 
 .app-shell {
-  width: calc(100% / var(--ui-scale));
+  width: calc(100vw / var(--ui-scale));
   height: calc(100vh / var(--ui-scale));
   min-height: calc(var(--measure-600) / var(--ui-scale));
-  zoom: var(--ui-scale);
   display: flex;
-  position: relative;
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: scale(var(--ui-scale));
+  transform-origin: top left;
   overflow: hidden;
   background: var(--app-background-gradient);
+  background-color: var(--bg);
+  color: var(--text);
 }
 
 .sidebar {
   width: var(--measure-238);
   flex: none;
-  border-right: var(--border-width) solid var(--border-subtle);
+  border-right: var(--border-width) solid var(--line);
+  border-color: var(--line);
   background: var(--sidebar-surface);
   display: flex;
   flex-direction: column;
@@ -115,13 +125,13 @@ select:focus-visible {
 .brand-name {
   font-size: var(--font-lg);
   font-weight: 800;
-  letter-spacing: calc(var(--measure-6) * -1);
+  letter-spacing: var(--letter-spacing-tight);
   color: var(--text);
   white-space: nowrap;
 }
 
 .brand-name span {
-  color: var(--accent);
+  color: var(--accent-text-color);
 }
 
 .brand-caption,
@@ -169,14 +179,14 @@ select:focus-visible {
 .nav-item.active {
   background: var(--accent-soft);
   border-color: var(--accent-border);
-  color: var(--accent);
+  color: var(--accent-text-color);
   font-weight: 600;
 }
 
 .nav-count {
   margin-left: auto;
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-text-color);
   border-radius: var(--radius-md);
   padding: var(--measure-2) var(--measure-7);
   font-size: var(--font-sm);
@@ -242,13 +252,13 @@ select:focus-visible {
   place-items: center;
   border-radius: var(--radius-sm);
   background: var(--surface-raised);
-  color: var(--accent);
+  color: var(--accent-text-color);
   font-size: var(--font-xs);
   font-weight: 700;
 }
 
 .shield {
-  color: var(--accent);
+  color: var(--accent-text-color);
 }
 
 .main-area {
@@ -273,9 +283,6 @@ select:focus-visible {
   display: flex;
   align-items: center;
   gap: var(--measure-10);
-}
-
-.breadcrumbs {
   font-size: var(--font-sm-plus);
   color: var(--text-subtle);
 }
@@ -327,7 +334,7 @@ select:focus-visible {
   display: flex;
   align-items: center;
   gap: var(--measure-7);
-  color: var(--accent);
+  color: var(--accent-text-color);
   font-size: var(--font-xs);
   font-weight: 700;
   letter-spacing: var(--measure-1-2);
@@ -478,11 +485,11 @@ select:focus-visible {
   height: var(--measure-39);
   flex: none;
   border: var(--border-width) solid var(--border);
-  background: var(--bg);
+  background: var(--inset-surface);
   border-radius: var(--radius-md);
   display: grid;
   place-items: center;
-  color: var(--accent);
+  color: var(--accent-text-color);
 }
 
 .drop-copy {
@@ -533,7 +540,7 @@ select:focus-visible {
 .settings-card > p {
   font-size: var(--font-sm);
   margin: var(--measure-5) 0 0;
-  color: var(--text-subtle);
+  color: var(--muted);
 }
 
 .source-section {
@@ -576,7 +583,7 @@ select:focus-visible {
   padding: var(--space-2) var(--measure-11);
   border: var(--border-width) solid var(--border);
   background: var(--bg);
-  border-radius: var(--radius-sm);
+  border-radius: calc(var(--radius) * 0.8);
 }
 
 .merge-index {
@@ -587,7 +594,7 @@ select:focus-visible {
   place-items: center;
   border-radius: var(--radius-sm);
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-text-color);
   font-size: var(--font-sm);
 }
 
@@ -627,7 +634,7 @@ select:focus-visible {
 
 .merge-hint svg {
   flex: none;
-  color: var(--accent);
+  color: var(--accent-text-color);
 }
 
 .file-card {
@@ -635,7 +642,7 @@ select:focus-visible {
   padding: var(--space-2) var(--measure-10);
   border: var(--border-width) solid var(--border);
   background: var(--bg);
-  border-radius: var(--radius-md);
+  border-radius: calc(var(--radius) * 0.9);
   display: flex;
   align-items: center;
   gap: var(--measure-11);
@@ -645,7 +652,7 @@ select:focus-visible {
   width: var(--measure-77);
   height: var(--measure-49);
   flex: none;
-  background: var(--bg);
+  background: var(--inset-surface);
   border-radius: var(--radius-sm);
   position: relative;
   overflow: hidden;
@@ -660,7 +667,7 @@ select:focus-visible {
 }
 
 .file-glyph {
-  color: var(--accent);
+  color: var(--accent-text-color);
 }
 
 .duration {
@@ -703,7 +710,7 @@ select:focus-visible {
   display: flex;
   align-items: center;
   gap: var(--measure-13);
-  color: var(--accent);
+  color: var(--accent-text-color);
   font-size: var(--font-xs);
 }
 
@@ -730,7 +737,7 @@ select:focus-visible {
 }
 
 .text-link {
-  color: var(--accent);
+  color: var(--accent-text-color);
 }
 
 .preset-grid {
@@ -744,7 +751,7 @@ select:focus-visible {
   text-align: left;
   padding: 0 var(--measure-10);
   border: var(--border-width) solid var(--border);
-  background: var(--bg);
+  background: var(--card-surface);
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
@@ -765,7 +772,7 @@ select:focus-visible {
   height: var(--measure-30);
   border-radius: var(--radius-sm);
   background: var(--surface-raised);
-  color: var(--accent);
+  color: var(--accent-text-color);
   display: grid;
   place-items: center;
   flex: none;
@@ -773,7 +780,7 @@ select:focus-visible {
 
 .selected .preset-icon {
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-text-color);
 }
 
 .preset-copy {
@@ -819,7 +826,7 @@ select:focus-visible {
   gap: var(--measure-18);
   margin-top: var(--measure-15);
   border: var(--border-width) solid var(--border);
-  background: var(--bg);
+  background: var(--card-surface);
   border-radius: var(--radius-md);
   padding: var(--measure-15);
 }
@@ -832,7 +839,7 @@ select:focus-visible {
   padding: var(--measure-11) var(--measure-13);
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--bg);
+  background: var(--card-surface);
 }
 
 .trim-switch,
@@ -860,7 +867,7 @@ select:focus-visible {
   padding: var(--measure-6) var(--measure-7);
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--bg);
+  background: var(--control-surface);
   color: var(--text);
   font-size: var(--font-sm);
 }
@@ -883,7 +890,7 @@ select:focus-visible {
 }
 
 .field label span {
-  color: var(--accent);
+  color: var(--accent-text-color);
 }
 
 .field input[type='range'] {
@@ -902,7 +909,7 @@ select:focus-visible {
   height: var(--measure-31);
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--bg);
+  background: var(--control-surface);
   position: relative;
 }
 
@@ -929,7 +936,7 @@ select:focus-visible {
   margin-top: var(--measure-22);
   padding: var(--space-3) var(--measure-13);
   border: var(--border-width) solid var(--border);
-  background: var(--bg);
+  background: var(--card-surface);
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
@@ -940,7 +947,7 @@ select:focus-visible {
   display: flex;
   align-items: center;
   gap: var(--measure-10);
-  color: var(--accent);
+  color: var(--accent-text-color);
 }
 
 .output-label > div {
@@ -998,15 +1005,15 @@ select:focus-visible {
 .button-count {
   border-radius: var(--radius-md);
   background: var(--accent);
-  color: var(--text);
+  color: var(--accent-contrast);
   padding: var(--measure-2) var(--measure-6);
   font-size: var(--font-xs);
 }
 
 .settings-card {
   border: var(--border-width) solid var(--border);
-  background: var(--bg);
-  border-radius: var(--radius-md);
+  background: var(--surface);
+  border-radius: var(--radius);
   padding: var(--measure-17);
   margin-bottom: var(--space-3);
 }
@@ -1017,7 +1024,7 @@ select:focus-visible {
 
 .setting-row {
   display: flex;
-  align-items: center;
+  align-items: end;
   justify-content: space-between;
   gap: var(--measure-14);
   border-top: var(--border-width) solid var(--border-subtle);
@@ -1057,13 +1064,13 @@ select:focus-visible {
 }
 
 .settings-card .field select,
-.settings-card .field input {
+.settings-card .field input:not([type='range'], [type='checkbox']) {
   min-width: var(--measure-150);
   padding: var(--measure-7) var(--measure-9);
-  border: var(--border-width) solid var(--border);
+  border: var(--border-width) solid var(--control-border);
   border-radius: var(--radius-sm);
-  background: var(--bg);
-  color: var(--text-muted);
+  background: var(--control-surface);
+  color: var(--control-text);
   font-size: var(--font-sm);
 }
 
@@ -1083,7 +1090,7 @@ select:focus-visible {
   place-items: center;
   border-radius: var(--radius-sm);
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-text-color);
 }
 
 .job-body {
@@ -1105,7 +1112,7 @@ select:focus-visible {
 
 .job-title span {
   font-size: var(--font-xs);
-  color: var(--accent);
+  color: var(--accent-text-color);
 }
 
 .progress-track {
@@ -1164,8 +1171,8 @@ select:focus-visible {
   width: var(--measure-55);
   height: var(--measure-55);
   border: var(--border-width) solid var(--border);
-  background: var(--bg);
-  color: var(--accent);
+  background: var(--inset-surface);
+  color: var(--accent-text-color);
   border-radius: var(--radius-lg);
   display: grid;
   place-items: center;
@@ -1198,13 +1205,13 @@ select:focus-visible {
   height: var(--measure-205);
   border: var(--border-width) dashed var(--accent);
   border-radius: var(--radius-lg);
-  background: var(--bg);
+  background: var(--surface);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-direction: column;
   gap: var(--measure-13);
-  color: var(--accent);
+  color: var(--accent-text-color);
 }
 
 .drag-overlay strong {
@@ -1224,7 +1231,7 @@ select:focus-visible {
   z-index: var(--z-toast);
   padding: var(--measure-11) var(--measure-13);
   border: var(--border-width) solid var(--accent-border);
-  background: var(--bg);
+  background: var(--card-surface);
   color: var(--text);
   border-radius: var(--radius-sm);
   display: flex;
@@ -1234,7 +1241,7 @@ select:focus-visible {
 }
 
 .toast > svg {
-  color: var(--accent);
+  color: var(--accent-text-color);
 }
 
 .toast button {
@@ -1247,10 +1254,6 @@ select:focus-visible {
 }
 
 @media (width <= 1100px) {
-  .sidebar {
-    width: var(--measure-205);
-  }
-
   .content-scroll {
     padding-inline: var(--measure-30);
   }
@@ -1281,22 +1284,6 @@ select:focus-visible {
   accent-color: var(--accent);
 }
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-body);
-}
-
-.app-shell {
-  background-color: var(--bg);
-  color: var(--text);
-}
-
-.sidebar {
-  background: var(--sidebar-surface);
-  border-color: var(--line);
-}
-
 .settings-card,
 .file-card,
 .merge-item,
@@ -1306,50 +1293,13 @@ body {
   border-color: var(--line);
   border-width: var(--border-width);
   background-color: var(--surface);
-}
-
-.settings-card {
-  border-radius: var(--radius);
-}
-
-.file-card {
-  border-radius: calc(var(--radius) * 0.9);
-}
-
-.merge-item {
-  border-radius: calc(var(--radius) * 0.8);
+  box-shadow: var(--card-shadow);
 }
 
 .job-card,
 .history-item,
 .queue-card {
   border-radius: var(--radius);
-}
-
-.settings-card h2,
-.section-header h2 {
-  color: var(--text);
-}
-
-.settings-card > p,
-.section-header p {
-  color: var(--muted);
-}
-
-:root[data-theme='dark'][data-palette='graphite'] .settings-card h2,
-:root[data-theme='dark'][data-palette='graphite'] .section-header h2 {
-  color: var(--text);
-}
-
-:root[data-theme='dark'][data-palette='graphite'] .settings-card > p,
-:root[data-theme='dark'][data-palette='graphite'] .section-header p {
-  color: var(--text-subtle);
-}
-
-.primary-button {
-  background: var(--accent);
-  color: var(--accent-text);
-  border-radius: calc(var(--radius) * 0.8);
 }
 
 .secondary-button,
@@ -1376,35 +1326,7 @@ body {
   background: var(--control-surface);
 }
 
-:root[data-theme='light'] .main-area,
-:root[data-theme='light'] .content-scroll {
-  background: var(--bg);
-}
-
-:root[data-theme='light'] .nav-item,
-:root[data-theme='light'] .brand-name,
-:root[data-theme='light'] .page-heading h1 {
-  color: var(--text);
-}
-
-:root[data-theme='light'] .nav-item:hover,
-:root[data-theme='light'] .nav-item.active {
-  background: color-mix(in srgb, var(--accent) 13%, var(--surface));
-  color: var(--text);
-}
-
-:root[data-theme='light'] .settings-card,
-:root[data-theme='light'] .file-card,
-:root[data-theme='light'] .merge-item,
-:root[data-theme='light'] .job-card {
-  box-shadow: var(--shadow-sm);
-}
-
 :root[data-background='gradient'] .app-shell {
-  background-image: var(--app-background-gradient);
-}
-
-:root[data-background='image'] .app-shell {
   background-image: var(--app-background-gradient);
 }
 
@@ -1490,6 +1412,7 @@ body {
   content: attr(data-tooltip);
   position: absolute;
   z-index: var(--z-dropdown);
+  width: max-content;
   left: calc(100% + var(--measure-8));
   top: 50%;
   transform: translateY(-50%);
@@ -1500,7 +1423,8 @@ body {
   background: var(--surface);
   color: var(--text);
   white-space: normal;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
+  word-break: normal;
   pointer-events: none;
   box-shadow: var(--shadow-sm);
 }
@@ -1628,10 +1552,6 @@ body {
   font-size: var(--font-md);
 }
 
-.setting-row {
-  align-items: end;
-}
-
 .setting-row > .field {
   flex: 1;
   min-width: var(--measure-135);
@@ -1719,7 +1639,7 @@ body {
   padding: var(--measure-11);
   border: var(--border-width) solid var(--line);
   border-radius: var(--radius);
-  background: var(--bg);
+  background: var(--card-surface);
 }
 
 .appearance-preview > span {
@@ -1781,10 +1701,6 @@ body {
 }
 
 @media (width <=800px) {
-  .setting-row {
-    flex-wrap: wrap;
-  }
-
   .sidebar-collapsed .sidebar {
     width: var(--measure-76);
     min-width: var(--measure-76);
@@ -1792,143 +1708,6 @@ body {
 }
 
 /* Keep the light theme consistent across controls and navigation. */
-:root[data-theme='light'] .app-shell {
-  background-image: none;
-}
-
-:root[data-theme='light'] .sidebar {
-  background: var(--surface);
-  border-color: var(--line);
-}
-
-:root[data-theme='light'] .topbar {
-  background: var(--surface);
-  border-color: var(--line);
-}
-
-:root[data-theme='light'] .brand-name span {
-  color: var(--accent);
-}
-
-:root[data-theme='light'] .brand-caption,
-:root[data-theme='light'] .workspace-label,
-:root[data-theme='light'] .breadcrumbs {
-  color: var(--muted);
-}
-
-:root[data-theme='light'] .breadcrumbs strong {
-  color: var(--text);
-}
-
-:root[data-theme='light'] .nav-item {
-  color: var(--muted);
-}
-
-:root[data-theme='light'] .nav-item:hover,
-:root[data-theme='light'] .nav-item.active {
-  background: color-mix(in srgb, var(--accent) 13%, var(--surface));
-  color: var(--text);
-}
-
-:root[data-theme='light'] .engine-card,
-:root[data-theme='light'] .user-card {
-  background: var(--bg);
-  border-color: var(--line);
-}
-
-:root[data-theme='light'] .engine-card strong,
-:root[data-theme='light'] .user-card strong {
-  color: var(--text);
-}
-
-:root[data-theme='light'] .engine-card span {
-  color: var(--muted);
-}
-
-:root[data-theme='light'] .settings-card,
-:root[data-theme='light'] .file-card,
-:root[data-theme='light'] .merge-item,
-:root[data-theme='light'] .job-card,
-:root[data-theme='light'] .history-item,
-:root[data-theme='light'] .queue-card {
-  background: var(--surface);
-  border-color: var(--line);
-}
-
-:root[data-theme='light'] .settings-card .field select,
-:root[data-theme='light'] .settings-card .field input:not([type='range'], [type='checkbox']),
-:root[data-theme='light'] .field select,
-:root[data-theme='light'] .field input:not([type='range'], [type='checkbox']),
-:root[data-theme='light'] .trim-times input {
-  background: var(--surface);
-  border-color: var(--line);
-  color: var(--text);
-}
-
-:root[data-theme='light'] .settings-card .field label,
-:root[data-theme='light'] .field label,
-:root[data-theme='light'] .setting-row > label {
-  color: var(--text);
-}
-
-:root[data-theme='light'] .appearance-details,
-:root[data-theme='light'] .setting-row {
-  border-color: var(--line);
-}
-
-:root[data-theme='light'] .secondary-button,
-:root[data-theme='light'] .mode-toggle {
-  background: var(--surface);
-  border-color: var(--line);
-  color: var(--text);
-}
-
-:root[data-theme='light'] .secondary-button:hover {
-  background: color-mix(in srgb, var(--surface) 90%, var(--text));
-}
-
-:root[data-theme='light'] .dropzone {
-  background: color-mix(in srgb, var(--surface) 90%, var(--bg));
-  border-color: var(--line);
-}
-
-:root[data-theme='light'] .drop-copy strong,
-:root[data-theme='light'] .preset-copy strong,
-:root[data-theme='light'] .file-info > strong,
-:root[data-theme='light'] .merge-file strong,
-:root[data-theme='light'] .job-title strong,
-:root[data-theme='light'] .output-label strong {
-  color: var(--text);
-}
-
-:root[data-theme='light'] .drop-copy span,
-:root[data-theme='light'] .file-meta,
-:root[data-theme='light'] .preset-copy span,
-:root[data-theme='light'] .file-info > span,
-:root[data-theme='light'] .section-header p,
-:root[data-theme='light'] .settings-card > p {
-  color: var(--muted);
-}
-
-:root[data-theme='light'] .preset-card,
-:root[data-theme='light'] .output-section,
-:root[data-theme='light'] .trim-tools,
-:root[data-theme='light'] .advanced-panel {
-  background: var(--surface);
-  border-color: var(--line);
-}
-
-:root[data-theme='light'] .preset-icon,
-:root[data-theme='light'] .upload-icon,
-:root[data-theme='light'] .file-preview,
-:root[data-theme='light'] .empty-icon {
-  background: var(--bg);
-  border-color: var(--line);
-}
-
-:root[data-theme='light'] .profile-menu {
-  box-shadow: var(--shadow-soft);
-}
 
 .appearance-settings .setting-row {
   flex-wrap: wrap;
@@ -1938,17 +1717,6 @@ body {
 .appearance-settings .setting-row > .field {
   flex: 1 1 var(--measure-210);
   min-width: min(var(--measure-210), 100%);
-}
-
-:root[data-theme='light'] .sidebar-collapsed .engine-card,
-:root[data-theme='light'] .sidebar-collapsed .user-card {
-  background: transparent;
-  border-color: transparent;
-}
-
-:root[data-background='image'] .app-shell {
-  background-image: var(--app-background-gradient);
-  isolation: isolate;
 }
 
 :root[data-background='image'] .main-area,

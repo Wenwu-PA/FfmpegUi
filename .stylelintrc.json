@@ -4,7 +4,6 @@
   "rules": {
     "color-no-hex": true,
     "declaration-no-important": true,
-    "no-descending-specificity": null,
-    "no-duplicate-selectors": null
+    "no-descending-specificity": null
   }
 }

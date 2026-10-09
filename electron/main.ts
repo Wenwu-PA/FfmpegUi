@@ -12,6 +12,7 @@ import { z } from 'zod'
 import type { FfmpegProgress } from '../src/shared/types'
 import { calculateDownloadProgress, getResumeOffset, matchesSha256, parseFfmpegVersion, parseSha256, selectFirstWorkingCandidate } from '../src/shared/ffmpegInstaller'
 import { appearanceSchema, defaultAppearance, type Appearance } from '../src/shared/appearance'
+import { t as translate } from '../src/shared/i18n'
 
 type WindowBounds = { x?: number; y?: number; width: number; height: number }
 type SettingsData = { ffmpegPath?: string; outputDir?: string; ffmpegVersion?: string; proxy?: string; appearance?: Appearance; appearanceProfiles?: { name: string; appearance: Appearance }[]; profile?: { name?: string; avatarSource?: 'custom' | 'windows' | 'initials' }; settingsVersion?: number; windowBounds?: WindowBounds }
@@ -35,6 +36,7 @@ if (existsSync(settingsFile)) {
 }
 const store = new Store<SettingsData>({ name: 'settings' })
 const settings = store as unknown as { get<K extends keyof SettingsData>(key: K): SettingsData[K]; set<K extends keyof SettingsData>(key: K, value: SettingsData[K]): void }
+const tr = (message: string) => translate(message, settings.get('appearance')?.language ?? 'ru')
 const storedAppearance = appearanceSchema.safeParse(settings.get('appearance'))
 if (!storedAppearance.success) settings.set('appearance', appearanceSchema.parse({ theme: legacyTheme }))
 else settings.set('appearance', storedAppearance.data)
@@ -226,14 +228,14 @@ async function extractAndInstall(archivePaths: string[], version: string, expect
   await mkdir(root, { recursive: true })
   const available = await statfs(root)
   const freeBytes = Number(available.bavail) * Number(available.bsize)
-  if (freeBytes < 512 * 1024 * 1024) throw new Error('Недостаточно свободного места: требуется не менее 512 МБ.')
+  if (freeBytes < 512 * 1024 * 1024) throw new Error(tr("Недостаточно свободного места: требуется не менее 512 МБ."))
   const archive = archivePaths[0]!
   const fileStats = await stat(archive)
-  if (fileStats.size < 1024 * 1024) throw new Error('Скачанный архив слишком мал и не похож на сборку FFmpeg.')
+  if (fileStats.size < 1024 * 1024) throw new Error(tr("Скачанный архив слишком мал и не похож на сборку FFmpeg."))
   if (expectedSha256) {
     const hash = createHash('sha256')
     for await (const chunk of createReadStream(archive)) hash.update(chunk)
-    if (!matchesSha256(hash.digest('hex'), expectedSha256)) throw new Error('SHA-256 архива не совпал с опубликованной контрольной суммой. Архив удалён, установка отменена.')
+    if (!matchesSha256(hash.digest('hex'), expectedSha256)) throw new Error(tr("SHA-256 архива не совпал с опубликованной контрольной суммой. Архив удалён, установка отменена."))
   }
   const staging = path.join(root, `.install-${randomUUID()}`)
   let destination = ''
@@ -249,10 +251,10 @@ async function extractAndInstall(archivePaths: string[], version: string, expect
     }
     const ffmpegPath = await findBinary(staging, 'ffmpeg')
     const ffprobePath = await findBinary(staging, 'ffprobe')
-    if (!ffmpegPath || !ffprobePath) throw new Error('В архиве не найдены ffmpeg и ffprobe.')
+    if (!ffmpegPath || !ffprobePath) throw new Error(tr("В архиве не найдены ffmpeg и ffprobe."))
     const versionText = await run(ffmpegPath, ['-version'], 5000)
     const parsedVersion = parseFfmpegVersion(versionText)
-    if (!parsedVersion) throw new Error('Скачанный ffmpeg не вернул номер версии.')
+    if (!parsedVersion) throw new Error(tr("Скачанный ffmpeg не вернул номер версии."))
     await run(ffprobePath, ['-version'], 5000)
     const variant = version.match(/(essentials|full|offline)$/)?.[1] ?? 'managed'
     destination = path.join(root, `${parsedVersion}-${variant}`.replace(/[^a-zA-Z0-9._-]/g, '_'))
@@ -278,7 +280,7 @@ function unusedOutputPath(file: string): string {
     const candidate = path.join(directory, `${stem} (${suffix})${extension}`)
     if (!existsSync(candidate)) return candidate
   }
-  throw new Error('Не удалось подобрать свободное имя для результата')
+  throw new Error(tr("Не удалось подобрать свободное имя для результата"))
 }
 
 function createPartPath(file: string): string {
@@ -288,13 +290,13 @@ function createPartPath(file: string): string {
 
 function friendlyFfmpegError(log: string, code: number | null): string {
   const text = log.toLowerCase()
-  const hint = text.includes('no space left') || text.includes('disk full') ? 'На диске недостаточно места.'
-    : text.includes('unknown encoder') || text.includes('encoder not found') ? 'В этой сборке FFmpeg нет нужного кодека.'
-    : text.includes('invalid data found') || text.includes('moov atom not found') ? 'Файл повреждён или имеет неподдерживаемый формат.'
-    : text.includes('permission denied') || text.includes('access is denied') ? 'Нет разрешения читать файл или записать результат.'
-    : text.includes('matches no streams') ? 'В исходном файле нет подходящих аудио- или видеопотоков.'
+  const hint = text.includes('no space left') || text.includes('disk full') ? tr('На диске недостаточно места.')
+    : text.includes('unknown encoder') || text.includes('encoder not found') ? tr('В этой сборке FFmpeg нет нужного кодека.')
+    : text.includes('invalid data found') || text.includes('moov atom not found') ? tr('Файл повреждён или имеет неподдерживаемый формат.')
+    : text.includes('permission denied') || text.includes('access is denied') ? tr('Нет разрешения читать файл или записать результат.')
+    : text.includes('matches no streams') ? tr('В исходном файле нет подходящих аудио- или видеопотоков.')
     : ''
-  return `${hint ? `${hint}\n\n` : ''}${log || `FFmpeg завершился с кодом ${code}`}`
+  return `${hint ? `${hint}\n\n` : ''}${log || `${tr('FFmpeg завершился с кодом')} ${code}`}`
 }
 
 function cacheWindowsAvatar(): boolean {
@@ -350,7 +352,7 @@ function cacheWindowsAvatar(): boolean {
 
 async function getProfileSnapshot() {
   const saved = settings.get('profile') ?? {}
-  const name = saved.name?.trim() || os.userInfo().username || 'Пользователь'
+  const name = saved.name?.trim() || os.userInfo().username || tr('Пользователь')
   let avatarUrl: string | undefined
   if (saved.avatarSource === 'custom' && existsSync(customAvatarFile)) {
     avatarUrl = `app-avatar://profile/avatar.webp?v=${(await stat(customAvatarFile)).mtimeMs}`
@@ -361,7 +363,7 @@ async function getProfileSnapshot() {
 }
 
 function registerIpc() {
-  ipcMain.handle('dialog:files', async () => (await dialog.showOpenDialog({ properties: ['openFile', 'multiSelections'], filters: [{ name: 'Медиа', extensions: ['mp4','mkv','mov','webm','avi','mp3','wav','flac','m4a','ogg','png','jpg','jpeg','webp','gif'] }] })).filePaths)
+  ipcMain.handle('dialog:files', async () => (await dialog.showOpenDialog({ properties: ['openFile', 'multiSelections'], filters: [{ name: tr('Медиа'), extensions: ['mp4','mkv','mov','webm','avi','mp3','wav','flac','m4a','ogg','png','jpg','jpeg','webp','gif'] }] })).filePaths)
   ipcMain.handle('dialog:directory', async () => (await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] })).filePaths[0] ?? null)
   ipcMain.handle('profile:get', () => getProfileSnapshot())
   ipcMain.handle('profile:set-name', (_event, input: unknown) => {
@@ -373,10 +375,10 @@ function registerIpc() {
     settings.set('profile', { ...settings.get('profile'), avatarSource })
   })
   ipcMain.handle('profile:save-avatar', async (_event, input: unknown) => {
-    const bytes = z.instanceof(Uint8Array).refine(value => value.byteLength >= 16 && value.byteLength <= 300_000, 'Размер аватара должен быть меньше 300 КБ.').parse(input)
+    const bytes = z.instanceof(Uint8Array).refine(value => value.byteLength >= 16 && value.byteLength <= 300_000, tr("Размер аватара должен быть меньше 300 КБ.")).parse(input)
     const imageData = Buffer.from(bytes)
-    if (imageData.toString('ascii', 0, 4) !== 'RIFF' || imageData.toString('ascii', 8, 12) !== 'WEBP') throw new Error('Выберите изображение WebP.')
-    if (imageData.toString('ascii', 12, 16) !== 'VP8 ' && imageData.toString('ascii', 12, 16) !== 'VP8L' && imageData.toString('ascii', 12, 16) !== 'VP8X') throw new Error('Файл аватара имеет неподдерживаемый формат WebP.')
+    if (imageData.toString('ascii', 0, 4) !== 'RIFF' || imageData.toString('ascii', 8, 12) !== 'WEBP') throw new Error(tr("Выберите изображение WebP."))
+    if (imageData.toString('ascii', 12, 16) !== 'VP8 ' && imageData.toString('ascii', 12, 16) !== 'VP8L' && imageData.toString('ascii', 12, 16) !== 'VP8X') throw new Error(tr("Файл аватара имеет неподдерживаемый формат WebP."))
     await writeFile(customAvatarFile, imageData)
     settings.set('profile', { ...settings.get('profile'), avatarSource: 'custom' })
     return `app-avatar://profile/avatar.webp?v=${(await stat(customAvatarFile)).mtimeMs}`
@@ -398,12 +400,12 @@ function registerIpc() {
       } catch {
         appearance = appearanceSchema.parse({ ...appearance, background: 'gradient', backgroundImage: undefined })
         settings.set('appearance', appearance)
-        backgroundWarning = 'Фоновая картинка недоступна. Возвращён градиент.'
+        backgroundWarning = tr('Фоновая картинка недоступна. Возвращён градиент.')
       }
     } else if (appearance.backgroundImage?.startsWith('data:')) {
       appearance = appearanceSchema.parse({ ...appearance, background: 'gradient', backgroundImage: undefined })
       settings.set('appearance', appearance)
-      backgroundWarning = 'Старое изображение фона было удалено из настроек. Выберите его снова.'
+      backgroundWarning = tr('Старое изображение фона было удалено из настроек. Выберите его снова.')
     }
     return { ffmpegPath: settings.get('ffmpegPath'), outputDir: settings.get('outputDir'), theme: appearance.theme, proxy: settings.get('proxy') ?? '', appearance, appearanceProfiles: settings.get('appearanceProfiles') ?? [], settingsVersion: settings.get('settingsVersion') ?? 2, backgroundWarning }
   })
@@ -426,15 +428,15 @@ function registerIpc() {
     return true
   })
   ipcMain.handle('appearance:background-image', async () => {
-    const choice = await dialog.showOpenDialog({ properties: ['openFile'], filters: [{ name: 'Фон', extensions: ['png', 'jpg', 'jpeg', 'webp'] }] })
+    const choice = await dialog.showOpenDialog({ properties: ['openFile'], filters: [{ name: tr('Фон'), extensions: ['png', 'jpg', 'jpeg', 'webp'] }] })
     const file = choice.filePaths[0]
     if (!file) return null
     const info = await stat(file)
-    if (info.size > 30 * 1024 * 1024) throw new Error('Размер исходного изображения не должен превышать 30 МБ.')
+    if (info.size > 30 * 1024 * 1024) throw new Error(tr("Размер исходного изображения не должен превышать 30 МБ."))
     const image = nativeImage.createFromPath(file)
-    if (image.isEmpty()) throw new Error('Не удалось прочитать изображение. Выберите PNG, JPEG или WebP.')
+    if (image.isEmpty()) throw new Error(tr("Не удалось прочитать изображение. Выберите PNG, JPEG или WebP."))
     const { width, height } = image.getSize()
-    if (!width || !height) throw new Error('Размер изображения не распознан.')
+    if (!width || !height) throw new Error(tr("Размер изображения не распознан."))
     const longestSide = Math.max(width, height)
     const resized = longestSide > 2560 ? image.resize({ width: Math.round(width * 2560 / longestSide), height: Math.round(height * 2560 / longestSide), quality: 'good' }) : image
     const bytes = resized.toJPEG(85)
@@ -449,20 +451,20 @@ function registerIpc() {
   ipcMain.handle('ffmpeg:install', async (event, input: unknown) => {
     const options = z.object({ build: z.enum(['essentials', 'full']), channel: z.enum(['stable', 'latest']) }).parse(input)
     const senderId = event.sender.id
-    if (downloads.has(senderId)) throw new Error('Загрузка FFmpeg уже выполняется.')
+    if (downloads.has(senderId)) throw new Error(tr("Загрузка FFmpeg уже выполняется."))
     const controller = new AbortController(); downloads.set(senderId, controller)
     const tempRoot = path.join(app.getPath('temp'), `ffmpeg-studio-download-${randomUUID()}`)
     const startedAt = Date.now()
     try {
       const proxy = settings.get('proxy')
-      if (proxy) { const parsed = new URL(proxy); if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Прокси должен использовать HTTP или HTTPS.'); await session.defaultSession.setProxy({ mode: 'fixed_servers', proxyRules: proxy }) }
+      if (proxy) { const parsed = new URL(proxy); if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error(tr("Прокси должен использовать HTTP или HTTPS.")); await session.defaultSession.setProxy({ mode: 'fixed_servers', proxyRules: proxy }) }
       else await session.defaultSession.setProxy({ mode: 'system' })
       const free = await statfs(app.getPath('userData'))
-      if (Number(free.bavail) * Number(free.bsize) < 512 * 1024 * 1024) throw new Error('Недостаточно свободного места: требуется не менее 512 МБ.')
+      if (Number(free.bavail) * Number(free.bsize) < 512 * 1024 * 1024) throw new Error(tr("Недостаточно свободного места: требуется не менее 512 МБ."))
       await mkdir(tempRoot, { recursive: true })
       const source = await resolveDownloadSource(options.build, options.channel)
       const { urls, expectedSha256, version } = await getSourceUrls(source)
-      if (!urls.length) throw new Error('Для этой системы не настроен источник FFmpeg.')
+      if (!urls.length) throw new Error(tr("Для этой системы не настроен источник FFmpeg."))
       const archives: string[] = []
       let verifiedSha256: string | undefined
       for (let index = 0; index < urls.length; index += 1) {
@@ -473,18 +475,18 @@ function registerIpc() {
       const progress = calculateDownloadProgress(received, total, elapsed * 1000)
       event.sender.send('ffmpeg:download-progress', { received, total, ...progress })
           })
-          if (size < 1024 * 1024) throw new Error('Источник вернул файл меньше 1 МБ.')
+          if (size < 1024 * 1024) throw new Error(tr("Источник вернул файл меньше 1 МБ."))
           if (index === 0 && expectedSha256) {
             const hash = createHash('sha256')
             for await (const chunk of createReadStream(archive)) hash.update(chunk)
-            if (!matchesSha256(hash.digest('hex'), expectedSha256)) throw new Error('SHA-256 архива не совпал. Файл удалён, установка отменена.')
+            if (!matchesSha256(hash.digest('hex'), expectedSha256)) throw new Error(tr("SHA-256 архива не совпал. Файл удалён, установка отменена."))
             verifiedSha256 = expectedSha256
           }
           archives.push(archive)
           if (process.platform !== 'darwin') break
         } catch (error) {
           await rm(archive, { force: true })
-          if (controller.signal.aborted) throw new Error('Загрузка отменена.')
+          if (controller.signal.aborted) throw new Error(tr("Загрузка отменена."))
           if (error instanceof Error && error.message.startsWith('SHA-256')) throw error
           if (index === urls.length - 1) throw error
         }
@@ -493,17 +495,17 @@ function registerIpc() {
       return { ok: true, ...installed, status: await refreshFfmpegSelection() }
     } catch (error) {
       await rm(tempRoot, { recursive: true, force: true }).catch(() => undefined)
-      throw new Error(error instanceof Error ? error.message : 'Не удалось установить FFmpeg.')
+      throw new Error(error instanceof Error ? tr(error.message) : tr('Не удалось установить FFmpeg.'))
     } finally { downloads.delete(senderId); await rm(tempRoot, { recursive: true, force: true }).catch(() => undefined) }
   })
   ipcMain.handle('ffmpeg:cancel-download', event => downloads.get(event.sender.id)?.abort())
   ipcMain.handle('ffmpeg:install-offline', async () => {
-    const choice = await dialog.showOpenDialog({ properties: ['openFile', 'openDirectory'], filters: [{ name: 'Архив FFmpeg', extensions: ['zip', '7z', 'xz', 'tar'] }] })
+    const choice = await dialog.showOpenDialog({ properties: ['openFile', 'openDirectory'], filters: [{ name: tr('Архив FFmpeg'), extensions: ['zip', '7z', 'xz', 'tar'] }] })
     const archive = choice.filePaths[0]
     if (!archive) return null
     if ((await stat(archive)).isDirectory()) {
       const ffmpegPath = await findBinary(archive, 'ffmpeg'); const ffprobePath = await findBinary(archive, 'ffprobe')
-      if (!ffmpegPath || !ffprobePath) throw new Error('В выбранной папке не найдены ffmpeg и ffprobe.')
+      if (!ffmpegPath || !ffprobePath) throw new Error(tr("В выбранной папке не найдены ffmpeg и ffprobe."))
       await run(ffmpegPath, ['-version'], 5000); await run(ffprobePath, ['-version'], 5000)
       settings.set('ffmpegPath', ffmpegPath); resolvedBinaries = { ffmpeg: ffmpegPath, ffprobe: ffprobePath }
       return { path: ffmpegPath, status: await refreshFfmpegSelection() }
@@ -531,14 +533,14 @@ function registerIpc() {
     const version = z.string().regex(/^[a-zA-Z0-9._-]{1,100}$/).parse(input)
     const root = path.join(app.getPath('userData'), 'ffmpeg', version)
     const ffmpeg = await findBinary(root, 'ffmpeg'); const ffprobe = await findBinary(root, 'ffprobe')
-    if (!ffmpeg || !ffprobe) throw new Error('Выбранная версия FFmpeg повреждена или неполная.')
+    if (!ffmpeg || !ffprobe) throw new Error(tr("Выбранная версия FFmpeg повреждена или неполная."))
     await run(ffmpeg, ['-version'], 5000); await run(ffprobe, ['-version'], 5000)
     settings.set('ffmpegVersion', version); store.delete('ffmpegPath')
     return refreshFfmpegSelection()
   })
   ipcMain.handle('ffmpeg:test', async () => {
     const status = await refreshFfmpegSelection()
-    if (!status.available) throw new Error('FFmpeg не найден.')
+    if (!status.available) throw new Error(tr("FFmpeg не найден."))
     const nullOutput = process.platform === 'win32' ? 'NUL' : '/dev/null'
     await run(status.path, ['-hide_banner', '-f', 'lavfi', '-i', 'testsrc=size=160x90:rate=10', '-t', '1', '-c:v', 'libx264', '-f', 'null', nullOutput], 20_000)
     return true
@@ -589,7 +591,7 @@ function registerIpc() {
     const job = z.object({ id: z.string(), inputs: z.array(localPathSchema).min(2), output: localPathSchema }).parse(input)
     const probes = await Promise.all(job.inputs.map(file => run(locate('ffprobe'), ['-v','error','-print_format','json','-show_format','-show_streams',file]).then(JSON.parse))) as { streams: { codec_type: string; codec_name: string; width?: number; height?: number; r_frame_rate?: string; channels?: number; sample_rate?: string }[]; format: { duration?: string } }[]
     const layout = (streams: typeof probes[number]['streams']) => JSON.stringify(streams.filter(stream => ['video','audio'].includes(stream.codec_type)).map(({ codec_type,codec_name,width,height,r_frame_rate,channels,sample_rate }) => ({ codec_type,codec_name,width,height,r_frame_rate,channels,sample_rate })))
-    if (probes.some(probe => layout(probe.streams) !== layout(probes[0]!.streams))) throw new Error('Для быстрой склейки нужны файлы с одинаковыми видео- и аудиопараметрами.')
+    if (probes.some(probe => layout(probe.streams) !== layout(probes[0]!.streams))) throw new Error(tr("Для быстрой склейки нужны файлы с одинаковыми видео- и аудиопараметрами."))
     const duration = probes.reduce((sum, probe) => sum + Number(probe.format.duration ?? 0), 0)
     const manifest = path.join(app.getPath('temp'), `ffmpeg-studio-${randomUUID()}.ffconcat`)
     const entries = job.inputs.map(file => `file '${path.resolve(file).replace(/\\/g, '/').replace(/'/g, "'\\''")}'`).join('\n')
@@ -706,10 +708,10 @@ function createTray() {
   let paused = false
   const show = () => { if (!mainWindow) void createWindow(); else { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); mainWindow.focus() } }
   const menu = () => Menu.buildFromTemplate([
-    { label: 'Показать', click: show },
-    { label: paused ? 'Очередь: продолжить' : 'Очередь: пауза', click: () => { paused = !paused; mainWindow?.webContents.send('queue:toggle', paused); tray?.setContextMenu(menu()) } },
+    { label: tr('Показать'), click: show },
+    { label: paused ? tr('Очередь: продолжить') : tr('Очередь: пауза'), click: () => { paused = !paused; mainWindow?.webContents.send('queue:toggle', paused); tray?.setContextMenu(menu()) } },
     { type: 'separator' },
-    { label: 'Выход', click: () => app.quit() },
+    { label: tr('Выход'), click: () => app.quit() },
   ])
   tray.setContextMenu(menu())
   tray.on('double-click', show)
