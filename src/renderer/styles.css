@@ -218,7 +218,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--ui-font); }
 :root[data-animations="false"] *, :root[data-animations="false"] *::before, :root[data-animations="false"] *::after { animation-duration: 0s !important; transition-duration: 0s !important; scroll-behavior: auto !important; }
 .app-shell[data-sidebar-position="right"] .sidebar { order: 2; border-right: 0; border-left: 1px solid var(--line); }
 .sidebar-collapsed .sidebar { width: 68px; min-width: 68px; padding-inline: 10px; }
-.sidebar-collapsed .brand>div:not(.brand-mark),.sidebar-collapsed .workspace-label,.sidebar-collapsed .engine-card>div,.sidebar-collapsed .user-card>div { display: none; }
+.sidebar-collapsed .brand>div:not(.brand-mark),.sidebar-collapsed .workspace-label,.sidebar-collapsed .engine-card>div,.sidebar-collapsed .user-card>div:not(.profile-avatar) { display: none; }
 .sidebar-collapsed .brand,.sidebar-collapsed .nav-item,.sidebar-collapsed .engine-card,.sidebar-collapsed .user-card { justify-content: center; }
 .sidebar-collapsed .nav-item { padding-inline: 0; }
 .sidebar-collapsed .nav-count { display: none; }
@@ -260,3 +260,12 @@ body { background: var(--bg); color: var(--text); font-family: var(--ui-font); }
 :root[data-background="image"] .settings-card,:root[data-background="image"] .file-card,:root[data-background="image"] .merge-item,:root[data-background="image"] .job-card,:root[data-background="image"] .history-item { background: color-mix(in srgb,var(--surface) 72%,transparent); backdrop-filter: blur(var(--glass-blur)); }
 .background-preview { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
 .background-preview img { width: 180px; height: 82px; object-fit: cover; border: 1px solid var(--line); border-radius: 8px; }
+.profile-menu-anchor { position: relative; min-width: 0; }
+.user-card { width: 100%; cursor: pointer; text-align: left; }
+.profile-avatar { width: 44px; height: 44px; min-width: 44px; overflow: hidden; border-radius: 50%; font-size: 13px; }
+.profile-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.user-card strong { font-size: 12px; }
+.profile-menu { position: absolute; z-index: 15; bottom: calc(100% + 7px); left: 0; right: 0; display: grid; gap: 3px; padding: 7px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: 0 10px 32px #0008; }
+.profile-menu button { min-height: 36px; padding: 8px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text); font: inherit; font-size: 12px; text-align: left; white-space: nowrap; }
+.profile-menu button:hover { background: color-mix(in srgb,var(--accent) 12%,var(--surface)); }
+.sidebar-collapsed .profile-menu { min-width: 210px; left: auto; right: 0; }

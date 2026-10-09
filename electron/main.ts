@@ -1,10 +1,11 @@
 import { app, BrowserWindow, dialog, ipcMain, shell, protocol, net, Menu, nativeImage, Tray, session } from 'electron'
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
-import { createReadStream, existsSync, readFileSync, renameSync } from 'node:fs'
+import { createReadStream, existsSync, readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs'
 import { mkdir, open, readFile, readdir, rename, rm, stat, statfs, writeFile } from 'node:fs/promises'
 import { path7za } from '7zip-bin'
 import path from 'node:path'
+import os from 'node:os'
 import { pathToFileURL } from 'node:url'
 import Store from 'electron-store'
 import { z } from 'zod'
@@ -13,9 +14,12 @@ import { calculateDownloadProgress, getResumeOffset, matchesSha256, parseFfmpegV
 import { appearanceSchema, defaultAppearance, type Appearance } from '../src/shared/appearance'
 
 type WindowBounds = { x?: number; y?: number; width: number; height: number }
-type SettingsData = { ffmpegPath?: string; outputDir?: string; ffmpegVersion?: string; proxy?: string; appearance?: Appearance; appearanceProfiles?: { name: string; appearance: Appearance }[]; settingsVersion?: number; windowBounds?: WindowBounds }
+type SettingsData = { ffmpegPath?: string; outputDir?: string; ffmpegVersion?: string; proxy?: string; appearance?: Appearance; appearanceProfiles?: { name: string; appearance: Appearance }[]; profile?: { name?: string; avatarSource?: 'custom' | 'windows' | 'initials' }; settingsVersion?: number; windowBounds?: WindowBounds }
 const settingsFile = path.join(app.getPath('userData'), 'settings.json')
 const backgroundDirectory = path.join(app.getPath('userData'), 'backgrounds')
+const profileDirectory = app.getPath('userData')
+const customAvatarFile = path.join(profileDirectory, 'avatar.webp')
+const windowsAvatarFile = path.join(profileDirectory, 'windows-avatar.jpg')
 const backgroundReferenceSchema = z.string().regex(/^app-bg:\/\/background\/[\da-f-]{36}\.jpg\?v=\d+$/i)
 const backgroundPathFromReference = (reference?: string) => {
   const match = reference?.match(/^app-bg:\/\/background\/([\da-f-]{36})\.jpg\?v=\d+$/i)
@@ -58,6 +62,7 @@ function finishQuitWhenIdle() {
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app-media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
   { scheme: 'app-bg', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  { scheme: 'app-avatar', privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ])
 
 const run = (bin: string, args: string[], timeoutMs = 15_000) => new Promise<string>((resolve, reject) => {
@@ -292,9 +297,95 @@ function friendlyFfmpegError(log: string, code: number | null): string {
   return `${hint ? `${hint}\n\n` : ''}${log || `FFmpeg завершился с кодом ${code}`}`
 }
 
+function cacheWindowsAvatar(): boolean {
+  if (process.platform !== 'win32') return false
+  try {
+    if (existsSync(windowsAvatarFile) && !nativeImage.createFromPath(windowsAvatarFile).isEmpty()) return true
+    const candidates: string[] = []
+    const who = spawnSync('whoami', ['/user', '/fo', 'csv', '/nh'], { encoding: 'utf8', timeout: 1500, windowsHide: true })
+    const sid = who.status === 0 ? who.stdout.match(/S-\d-\d+(?:-\d+)+/)?.[0] : undefined
+    if (sid) {
+      const registry = spawnSync('reg', ['query', `HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\AccountPicture\\Users\\${sid}`], { encoding: 'utf8', timeout: 1500, windowsHide: true })
+      if (registry.status === 0) {
+        const images = [...registry.stdout.matchAll(/Image(\d+)\s+REG_\w+\s+(.+)/gi)].map(match => ({ size: Number(match[1]), path: match[2]!.trim() })).sort((a, b) => b.size - a.size)
+        for (const image of images) candidates.push(image.path.replace(/^"|"$/g, ''))
+      }
+    }
+    const accountPictures = path.join(process.env.APPDATA ?? '', 'Microsoft', 'Windows', 'AccountPictures')
+    if (existsSync(accountPictures)) {
+      for (const entry of readdirSync(accountPictures).filter(name => name.toLowerCase().endsWith('.accountpicture-ms'))) candidates.push(`buffer:${path.join(accountPictures, entry)}`)
+    }
+    const systemPictures = path.join(process.env.ProgramData ?? 'C:\\ProgramData', 'Microsoft', 'User Account Pictures')
+    for (const name of [`${os.userInfo().username}.png`, 'user.png']) candidates.push(path.join(systemPictures, name))
+
+    const images: Electron.NativeImage[] = []
+    for (const candidate of candidates) {
+      try {
+        if (candidate.startsWith('buffer:')) {
+          const data = readFileSync(candidate.slice('buffer:'.length))
+          for (const signature of [Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]), Buffer.from([0xff,0xd8,0xff])]) {
+            let offset = data.indexOf(signature)
+            while (offset >= 0) {
+              const image = nativeImage.createFromBuffer(data.subarray(offset))
+              if (!image.isEmpty()) images.push(image)
+              offset = data.indexOf(signature, offset + signature.length)
+            }
+          }
+        } else if (existsSync(candidate)) {
+          const image = nativeImage.createFromPath(candidate)
+          if (!image.isEmpty()) images.push(image)
+        }
+      } catch { /* A corrupt or unavailable account picture is an optional source. */ }
+    }
+    images.sort((a, b) => { const aa = a.getSize(); const bb = b.getSize(); return bb.width * bb.height - aa.width * aa.height })
+    const image = images[0]
+    if (!image) return false
+    const { width, height } = image.getSize()
+    const longest = Math.max(width, height)
+    const resized = longest > 256 ? image.resize({ width: Math.round(width * 256 / longest), height: Math.round(height * 256 / longest), quality: 'good' }) : image
+    writeFileSync(windowsAvatarFile, resized.toJPEG(85))
+    return true
+  } catch { return false }
+}
+
+async function getProfileSnapshot() {
+  const saved = settings.get('profile') ?? {}
+  const name = saved.name?.trim() || os.userInfo().username || 'Пользователь'
+  let avatarUrl: string | undefined
+  if (saved.avatarSource === 'custom' && existsSync(customAvatarFile)) {
+    avatarUrl = `app-avatar://profile/avatar.webp?v=${(await stat(customAvatarFile)).mtimeMs}`
+  } else if (saved.avatarSource !== 'initials' && cacheWindowsAvatar()) {
+    avatarUrl = `app-avatar://profile/windows.jpg?v=${(await stat(windowsAvatarFile)).mtimeMs}`
+  }
+  return { name, avatarUrl }
+}
+
 function registerIpc() {
   ipcMain.handle('dialog:files', async () => (await dialog.showOpenDialog({ properties: ['openFile', 'multiSelections'], filters: [{ name: 'Медиа', extensions: ['mp4','mkv','mov','webm','avi','mp3','wav','flac','m4a','ogg','png','jpg','jpeg','webp','gif'] }] })).filePaths)
   ipcMain.handle('dialog:directory', async () => (await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] })).filePaths[0] ?? null)
+  ipcMain.handle('profile:get', () => getProfileSnapshot())
+  ipcMain.handle('profile:set-name', (_event, input: unknown) => {
+    const name = z.string().trim().min(1).max(32).parse(input)
+    settings.set('profile', { ...settings.get('profile'), name })
+  })
+  ipcMain.handle('profile:set-avatar-source', (_event, input: unknown) => {
+    const avatarSource = z.enum(['windows', 'initials']).parse(input)
+    settings.set('profile', { ...settings.get('profile'), avatarSource })
+  })
+  ipcMain.handle('profile:save-avatar', async (_event, input: unknown) => {
+    const bytes = z.instanceof(Uint8Array).refine(value => value.byteLength >= 16 && value.byteLength <= 300_000, 'Размер аватара должен быть меньше 300 КБ.').parse(input)
+    const imageData = Buffer.from(bytes)
+    if (imageData.toString('ascii', 0, 4) !== 'RIFF' || imageData.toString('ascii', 8, 12) !== 'WEBP') throw new Error('Выберите изображение WebP.')
+    if (imageData.toString('ascii', 12, 16) !== 'VP8 ' && imageData.toString('ascii', 12, 16) !== 'VP8L' && imageData.toString('ascii', 12, 16) !== 'VP8X') throw new Error('Файл аватара имеет неподдерживаемый формат WebP.')
+    await writeFile(customAvatarFile, imageData)
+    settings.set('profile', { ...settings.get('profile'), avatarSource: 'custom' })
+    return `app-avatar://profile/avatar.webp?v=${(await stat(customAvatarFile)).mtimeMs}`
+  })
+  ipcMain.handle('profile:reset', async () => {
+    await rm(customAvatarFile, { force: true })
+    store.delete('profile')
+    return getProfileSnapshot()
+  })
   ipcMain.handle('settings:get', async () => {
     let appearance = settings.get('appearance') ?? defaultAppearance
     let backgroundWarning: string | undefined
@@ -638,6 +729,16 @@ app.whenReady().then(() => {
     try {
       const bytes = await readFile(file)
       return new Response(bytes, { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } })
+    } catch { return new Response('Not found', { status: 404 }) }
+  })
+  protocol.handle('app-avatar', async request => {
+    const url = new URL(request.url)
+    if (url.host !== 'profile') return new Response('Not found', { status: 404 })
+    const file = url.pathname === '/avatar.webp' ? customAvatarFile : url.pathname === '/windows.jpg' ? windowsAvatarFile : undefined
+    if (!file) return new Response('Not found', { status: 404 })
+    try {
+      const bytes = await readFile(file)
+      return new Response(bytes, { headers: { 'Content-Type': file.endsWith('.webp') ? 'image/webp' : 'image/jpeg', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } })
     } catch { return new Response('Not found', { status: 404 }) }
   })
   registerIpc(); createTray(); void refreshFfmpegSelection().then(() => createWindow())

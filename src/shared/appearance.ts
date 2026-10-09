@@ -19,6 +19,7 @@ export const appearanceSchema = z.object({
   sidebarPosition: z.enum(['left', 'right']).default('left'),
   sidebarCollapsed: z.boolean().default(false),
   sidebarLabels: z.boolean().default(true),
+  showProfile: z.boolean().default(true),
   sidebarSections: z.array(z.enum(['converter', 'merge', 'queue', 'history', 'settings'])).default(['converter', 'merge', 'queue', 'history', 'settings']),
   hiddenSections: z.array(z.enum(['converter', 'merge', 'queue', 'history', 'settings'])).default([]),
   animations: z.boolean().default(true),
