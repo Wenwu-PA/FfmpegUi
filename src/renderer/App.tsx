@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Activity, AudioLines, Check, ChevronDown, ChevronUp, Clapperboard, Clock3, FileAudio2, FileVideo2, FolderOpen, Gauge, History, MoreHorizontal, Play, Plus, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Trash2, Upload, WandSparkles, X } from 'lucide-react'
 import type { MediaFile, ProbeResult } from '../shared/types'
 import { buildFfmpegArgs } from '../shared/buildFfmpegArgs'
@@ -32,6 +32,7 @@ function applyAppearance(value: Appearance) {
   const source = value.palette === 'custom' ? value.colors : preset.colors
   const colors = dark ? source : { ...source, background: '#f1f3f6', surface: '#ffffff', border: '#d5dbe3', text: '#202632', muted: '#596474' }
   const root = document.documentElement
+  root.style.colorScheme = dark ? 'dark' : 'light'
   root.dataset.theme = dark ? 'dark' : 'light'
   root.dataset.palette = value.palette
   root.dataset.background = value.background
@@ -41,8 +42,19 @@ function applyAppearance(value: Appearance) {
   root.style.setProperty('--bg', colors.background)
   root.style.setProperty('--panel', colors.surface)
   root.style.setProperty('--surface', colors.surface)
+  root.style.setProperty('--surface-2', dark && value.palette === 'graphite' ? '#171b23' : dark ? `color-mix(in srgb, ${colors.surface} 88%, ${colors.text})` : '#ffffff')
+  root.style.setProperty('--surface-3', dark && value.palette === 'graphite' ? '#202631' : dark ? `color-mix(in srgb, ${colors.surface} 78%, ${colors.text})` : '#f1f3f6')
+  root.style.setProperty('--surface-4', dark && value.palette === 'graphite' ? '#272e3a' : dark ? `color-mix(in srgb, ${colors.surface} 68%, ${colors.text})` : '#e8edf3')
+  root.style.setProperty('--surface-raised', dark && value.palette === 'graphite' ? '#10131a' : colors.surface)
   root.style.setProperty('--line', colors.border)
   root.style.setProperty('--muted', colors.muted)
+  root.style.setProperty('--border', colors.border)
+  root.style.setProperty('--border-strong', dark && value.palette === 'graphite' ? '#414a58' : dark ? `color-mix(in srgb, ${colors.border} 72%, ${colors.text})` : '#aab3c0')
+  root.style.setProperty('--border-subtle', dark && value.palette === 'graphite' ? '#ffffff0a' : `color-mix(in srgb, ${colors.border} 45%, transparent)`)
+  root.style.setProperty('--text-strong', colors.text)
+  root.style.setProperty('--text-secondary', dark && value.palette === 'graphite' ? '#d8dbe4' : dark ? colors.text : '#364152')
+  root.style.setProperty('--text-subtle', dark && value.palette === 'graphite' ? '#666d79' : colors.muted)
+  root.style.setProperty('--text-inverse', '#ffffff')
   root.style.setProperty('--sidebar-surface', dark && value.palette === 'graphite' ? '#0e1016' : colors.surface)
   root.style.setProperty('--control-surface', dark && value.palette === 'graphite' ? '#171b23' : colors.surface)
   root.style.setProperty('--control-border', dark && value.palette === 'graphite' ? '#303744' : colors.border)
@@ -51,20 +63,58 @@ function applyAppearance(value: Appearance) {
   root.style.setProperty('--button-text', dark && value.palette === 'graphite' ? '#cdd1d9' : colors.text)
   root.style.setProperty('--icon-muted', dark && value.palette === 'graphite' ? '#858c99' : colors.muted)
   root.style.setProperty('--success', colors.success)
+  root.style.setProperty('--success-soft', `color-mix(in srgb, ${colors.success} 10%, transparent)`)
   root.style.setProperty('--error', colors.error)
+  root.style.setProperty('--danger', colors.error)
+  root.style.setProperty('--danger-soft', `color-mix(in srgb, ${colors.error} 10%, transparent)`)
   root.style.setProperty('--warning', colors.warning)
+  root.style.setProperty('--warning-soft', `color-mix(in srgb, ${colors.warning} 10%, transparent)`)
+  root.style.setProperty('--accent-soft', `color-mix(in srgb, ${value.accent} 8%, transparent)`)
+  root.style.setProperty('--accent-border', `color-mix(in srgb, ${value.accent} 24%, ${colors.border})`)
+  root.style.setProperty('--dropzone-gradient', dark && value.palette === 'graphite'
+    ? 'linear-gradient(105deg, #151920a8, #12151bb3)'
+    : dark
+    ? `linear-gradient(105deg, color-mix(in srgb, ${colors.surface} 72%, transparent), color-mix(in srgb, ${colors.surface} 84%, transparent))`
+    : `linear-gradient(105deg, ${colors.surface}, color-mix(in srgb, ${colors.background} 55%, ${colors.surface}))`)
+  root.style.setProperty('--selected-gradient', dark && value.palette === 'graphite'
+    ? 'linear-gradient(100deg, #9edb5710, #12171b)'
+    : dark
+    ? `linear-gradient(100deg, color-mix(in srgb, ${value.accent} 7%, transparent), ${colors.background})`
+    : `linear-gradient(100deg, color-mix(in srgb, ${value.accent} 7%, ${colors.surface}), ${colors.surface})`)
+  root.style.setProperty('--warning-border', `color-mix(in srgb, ${colors.warning} 42%, ${colors.border})`)
+  root.style.setProperty('--danger-border', `color-mix(in srgb, ${colors.error} 42%, ${colors.border})`)
+  root.style.setProperty('--accent-hover', `color-mix(in srgb, ${value.accent} 82%, var(--text-inverse))`)
   root.style.setProperty('--text', colors.text)
   root.style.setProperty('--accent', value.accent)
+  root.style.setProperty('--accent-contrast', readableAccentText(value.accent))
+  root.style.setProperty('--focus-ring', value.accent)
+  const shadowColor = dark ? '#000000' : '#64748b'
+  const shadowScale = value.shadowStrength / 35
+  root.style.setProperty('--shadow-sm', `0 5px 18px color-mix(in srgb, ${shadowColor} ${Math.round((dark ? 20 : 12) * shadowScale)}%, transparent)`)
+  root.style.setProperty('--shadow-md', `0 10px 32px color-mix(in srgb, ${shadowColor} ${Math.round((dark ? 53 : 16) * shadowScale)}%, transparent)`)
+  root.style.setProperty('--shadow-lg', `0 18px 48px color-mix(in srgb, ${shadowColor} ${Math.round((dark ? 67 : 20) * shadowScale)}%, transparent)`)
+  root.style.setProperty('--shadow-soft', `0 5px 18px color-mix(in srgb, ${shadowColor} ${Math.round((dark ? 9 : 10) * shadowScale)}%, transparent)`)
+  const defaultDarkGradient = 'radial-gradient(ellipse at 74% -30%, #172019, transparent 42%), var(--bg)'
+  const accentGradient = 'radial-gradient(ellipse at 74% -30%, color-mix(in srgb, var(--success) 12%, transparent), transparent 42%), var(--bg)'
+  root.style.setProperty('--app-background-gradient', value.background === 'gradient' && dark
+    ? value.palette === 'graphite' ? defaultDarkGradient : accentGradient
+    : 'none')
   root.style.setProperty('--accent-text', readableAccentText(value.accent))
   root.style.setProperty('--radius', `${value.radius}px`)
+  root.style.setProperty('--radius-sm', `${Math.round(value.radius * 0.8)}px`)
+  root.style.setProperty('--radius-md', `${value.radius}px`)
+  root.style.setProperty('--radius-lg', `${Math.min(24, Math.round(value.radius * 1.5))}px`)
   root.style.setProperty('--ui-scale', String(value.scale))
   root.style.setProperty('--border-width', `${value.borderWidth}px`)
   root.style.setProperty('--shadow-strength', String(value.shadowStrength / 100))
   root.style.setProperty('--glass-alpha', `${value.glassOpacity}%`)
   root.style.setProperty('--glass-blur', `${value.glassBlur}px`)
   root.style.setProperty('--app-bg-image', value.backgroundImage ? `url("${value.backgroundImage}")` : 'none')
-  root.style.setProperty('--background-dim', String(0.8 - value.glassOpacity / 100 * 0.65))
-  root.style.setProperty('--ui-font', value.font === 'system' ? '"Segoe UI", system-ui, sans-serif' : value.font === 'inter' ? 'Inter, "Segoe UI", sans-serif' : value.font === 'aptos' ? 'Aptos, "Segoe UI", sans-serif' : 'Arial, sans-serif')
+  const backgroundDim = 0.8 - value.glassOpacity / 100 * 0.65
+  root.style.setProperty('--background-dim', String(backgroundDim))
+  const imageOverlay = `color-mix(in srgb, ${colors.background} ${Math.round(backgroundDim * 100)}%, transparent)`
+  root.style.setProperty('--image-overlay', `linear-gradient(${imageOverlay}, ${imageOverlay})`)
+  root.style.setProperty('--font-body', value.font === 'system' ? '"Segoe UI", system-ui, sans-serif' : value.font === 'inter' ? 'Inter, "Segoe UI", sans-serif' : value.font === 'aptos' ? 'Aptos, "Segoe UI", sans-serif' : 'Arial, sans-serif')
   root.style.setProperty('--mono-font', value.monoFont === 'consolas' ? 'Consolas, monospace' : value.monoFont === 'cascadia' ? '"Cascadia Code", Consolas, monospace' : 'ui-monospace, Consolas, monospace')
   root.style.setProperty('--animation-duration', value.animationSpeed === 'slow' ? '0.45s' : value.animationSpeed === 'fast' ? '0.12s' : '0.25s')
 }
@@ -97,8 +147,8 @@ function AppearanceSettings({ value, onChange }: { value: Appearance; onChange: 
   const colors: [keyof Appearance['colors'], string][] = [['background','Фон'], ['surface','Поверхность'], ['border','Границы'], ['text','Текст'], ['muted','Вторичный текст'], ['success','Успех'], ['error','Ошибка'], ['warning','Предупреждение']]
   return <section className="settings-card appearance-settings"><h2>Оформление</h2><p>Изменения применяются сразу и сохраняются автоматически.</p>
     <div className="setting-row"><label className="field">Режим темы<select value={value.theme} onChange={event => update({ theme: event.target.value as Appearance['theme'] })}><option value="system">Системная</option><option value="light">Светлая</option><option value="dark">Тёмная</option></select></label><label className="field">Готовая палитра<select value={value.palette} onChange={event => { const palette = event.target.value as Appearance['palette']; update({ palette, colors: palettes[palette].colors, accent: palettes[palette].accent }) }}>{Object.entries(paletteNames).map(([id,name]) => <option value={id} key={id}>{name}</option>)}<option value="custom">Своя тема</option></select></label></div>
-    <div className="palette-swatches">{Object.entries(paletteNames).map(([id,name]) => <button key={id} className={`palette-swatch ${value.palette === id ? 'selected' : ''}`} title={name} style={{ background: palettes[id as keyof typeof palettes].accent }} onClick={() => update({ palette: id as Appearance['palette'], colors: palettes[id as keyof typeof palettes].colors, accent: palettes[id as keyof typeof palettes].accent })} />)}</div>
-    <div className="setting-row"><label className="field">Акцентный цвет<input type="color" value={value.accent} onChange={event => update({ palette: 'custom', accent: event.target.value })} /></label><label className="field">HEX<input value={value.accent} onChange={event => { if (/^#[\da-f]{6}$/i.test(event.target.value)) update({ palette: 'custom', accent: event.target.value }) }} /></label><span className="contrast-preview" style={{ background: value.accent, color: readableAccentText(value.accent) }}>Текст с проверенным контрастом</span></div>
+    <div className="palette-swatches">{Object.entries(paletteNames).map(([id,name]) => <button key={id} className={`palette-swatch ${value.palette === id ? 'active' : ''}`} title={name} aria-label={name} style={{ '--swatch-color': palettes[id as keyof typeof palettes].accent } as CSSProperties} onClick={() => update({ palette: id as Appearance['palette'], colors: palettes[id as keyof typeof palettes].colors, accent: palettes[id as keyof typeof palettes].accent })} />)}</div>
+    <div className="setting-row"><label className="field">Акцентный цвет<input type="color" value={value.accent} onChange={event => update({ palette: 'custom', accent: event.target.value })} /></label><label className="field">HEX<input value={value.accent} onChange={event => { if (/^#[\da-f]{6}$/i.test(event.target.value)) update({ palette: 'custom', accent: event.target.value }) }} /></label><span className="contrast-preview" style={{ '--preview-accent': value.accent, '--preview-text': readableAccentText(value.accent) } as CSSProperties}>Текст с проверенным контрастом</span></div>
     <details className="appearance-details"><summary>Цвета своей темы</summary><div className="color-editor">{colors.map(([key,label]) => <label key={key}>{label}<input type="color" value={value.colors[key]} onChange={event => updateColor(key,event.target.value)} /></label>)}</div></details>
     <div className="setting-row"><label className="field">Фон приложения<select value={value.background} onChange={event => update({ background: event.target.value as Appearance['background'] })}><option value="solid">Сплошной</option><option value="gradient">Градиент</option><option value="glass">Стекло</option><option value="image">Своя картинка</option><option value="mica">Mica (Windows 11)</option><option value="acrylic">Acrylic (Windows 11)</option></select></label>{value.background === 'image' && <button className="secondary-button" onClick={() => void window.ffmpegStudio.chooseBackgroundImage().then(image => { if (image) { update({ backgroundImage: image }); setNotice('Фон сохранён в папке данных приложения.') } }).catch(error => setNotice(error instanceof Error ? error.message : 'Не удалось сохранить изображение.'))}>Выбрать изображение</button>}</div>
     {value.background === 'image' && value.backgroundImage && <div className="background-preview"><img src={value.backgroundImage} alt="Предпросмотр фона" onError={() => { update({ background: 'gradient', backgroundImage: undefined }); setNotice('Изображение недоступно. Возвращён градиент.') }} /><button className="secondary-button" onClick={() => { update({ background: 'gradient', backgroundImage: undefined }); setNotice('Картинка убрана. Используется градиент.') }}>Убрать картинку</button></div>}
@@ -149,11 +199,11 @@ function FfmpegSettings({ status, onStatus }: { status: FfmpegStatus; onStatus: 
   const formatBytes = (value: number) => `${(value / 1_048_576).toFixed(1)} МБ`
   return <section className="settings-card"><h2>FFmpeg</h2><p>{status.available ? `Готов · ${status.version} · ${status.source === 'managed' ? 'установлен приложением' : status.source === 'custom' ? 'пользовательский путь' : status.source === 'bundled' ? 'встроенный' : 'системный PATH'}` : 'FFmpeg не найден. Он нужен для работы приложения.'}</p>
     <div className="setting-row"><div className="setting-path"><strong>{status.available ? status.path : 'Не найден'}</strong><span>{status.available ? `Кодеки: ${status.encoders?.join(', ') || 'не определены'} · GPU: ${status.gpu?.join(', ') || 'не обнаружен'}` : 'Другие разделы доступны; обработка включится после установки.'}</span></div><button className="secondary-button" onClick={() => void window.ffmpegStudio.testFfmpeg().then(() => setMessage('Пробная кодировка 1 секунды прошла.')).catch(error => setMessage(error instanceof Error ? error.message : 'Тест завершился ошибкой.'))}>Проверить работоспособность</button></div>
-    <div className="setting-row" style={{ marginTop: 14 }}><label className="field">Сборка<select value={build} onChange={event => setBuild(event.target.value as typeof build)}><option value="essentials">Essentials</option><option value="full">Full</option></select></label><label className="field">Версия<select value={channel} onChange={event => setChannel(event.target.value as typeof channel)}><option value="stable">Стабильная</option><option value="latest">Последняя</option></select></label><button className="primary-button" disabled={busy} onClick={() => void install()}>{busy ? 'Скачивание…' : status.available ? 'Скачать / обновить' : 'Скачать автоматически (рекомендуется)'}</button></div>
+    <div className="setting-row setting-row-spaced"><label className="field">Сборка<select value={build} onChange={event => setBuild(event.target.value as typeof build)}><option value="essentials">Essentials</option><option value="full">Full</option></select></label><label className="field">Версия<select value={channel} onChange={event => setChannel(event.target.value as typeof channel)}><option value="stable">Стабильная</option><option value="latest">Последняя</option></select></label><button className="primary-button" disabled={busy} onClick={() => void install()}>{busy ? 'Скачивание…' : status.available ? 'Скачать / обновить' : 'Скачать автоматически (рекомендуется)'}</button></div>
     {progress && <div className="download-progress"><div className="progress-track"><span style={{ width: `${progress.percent}%` }} /></div><span>{progress.total ? `${progress.percent.toFixed(0)}% · ${formatBytes(progress.received)} / ${formatBytes(progress.total)}` : `${formatBytes(progress.received)} · размер неизвестен`} · {formatBytes(progress.speed)}/с{progress.eta ? ` · ~${Math.ceil(progress.eta)} с` : ''}</span><button className="cancel-button" onClick={() => void window.ffmpegStudio.cancelFfmpegDownload()}>Отмена</button></div>}
-    <div className="setting-row" style={{ marginTop: 12 }}><button className="secondary-button" onClick={() => void installOffline()}>Выбрать архив или папку (офлайн)</button><button className="secondary-button" onClick={() => void choosePath()}>Указать путь вручную</button>{status.available && <><button className="secondary-button" onClick={() => void window.ffmpegStudio.reveal(status.path)}>Открыть папку</button><button className="secondary-button" onClick={() => void window.ffmpegStudio.removeFfmpeg().then(() => window.ffmpegStudio.ffmpegStatus()).then(onStatus)}>Удалить скачанную версию</button></>}</div>
-    {!!status.versions?.length && <div className="setting-row" style={{ marginTop: 12 }}><label className="field">Установленные версии<select value={selectedVersion} onChange={event => setSelectedVersion(event.target.value)}>{status.versions.map(version => <option value={version} key={version}>{version}</option>)}</select></label><button className="secondary-button" onClick={() => void window.ffmpegStudio.switchFfmpegVersion(selectedVersion).then(() => window.ffmpegStudio.ffmpegStatus()).then(onStatus)}>Использовать выбранную</button></div>}
-    <div className="setting-row" style={{ marginTop: 12 }}><label className="field" style={{ flex: 1 }}>Свой прокси<input value={proxy} onChange={event => setProxy(event.target.value)} placeholder="http://127.0.0.1:8080" /></label><button className="secondary-button" onClick={() => void window.ffmpegStudio.setSettings({ proxy })}>Сохранить прокси</button></div>
+    <div className="setting-row setting-row-compact-spaced"><button className="secondary-button" onClick={() => void installOffline()}>Выбрать архив или папку (офлайн)</button><button className="secondary-button" onClick={() => void choosePath()}>Указать путь вручную</button>{status.available && <><button className="secondary-button" onClick={() => void window.ffmpegStudio.reveal(status.path)}>Открыть папку</button><button className="secondary-button" onClick={() => void window.ffmpegStudio.removeFfmpeg().then(() => window.ffmpegStudio.ffmpegStatus()).then(onStatus)}>Удалить скачанную версию</button></>}</div>
+    {!!status.versions?.length && <div className="setting-row setting-row-compact-spaced"><label className="field">Установленные версии<select value={selectedVersion} onChange={event => setSelectedVersion(event.target.value)}>{status.versions.map(version => <option value={version} key={version}>{version}</option>)}</select></label><button className="secondary-button" onClick={() => void window.ffmpegStudio.switchFfmpegVersion(selectedVersion).then(() => window.ffmpegStudio.ffmpegStatus()).then(onStatus)}>Использовать выбранную</button></div>}
+    <div className="setting-row setting-row-compact-spaced"><label className="field proxy-field">Свой прокси<input value={proxy} onChange={event => setProxy(event.target.value)} placeholder="http://127.0.0.1:8080" /></label><button className="secondary-button" onClick={() => void window.ffmpegStudio.setSettings({ proxy })}>Сохранить прокси</button></div>
     {message && <p role="status">{message}</p>}{failed && <button className="secondary-button" disabled={busy} onClick={() => void install()}>Повторить</button>}
   </section>
 }
