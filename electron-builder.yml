@@ -1,17 +1,32 @@
 appId: com.frameforge.ffmpegstudio
 productName: FFmpeg Studio
 copyright: Copyright © 2026 Wenwu-PA
-artifactName: ${productName}-${version}-${arch}.${ext}
 directories:
-  output: release
+  output: release/optimized
+asar: true
+compression: maximum
+electronLanguages:
+  - ru
+  - en-US
 files:
   - dist/**
   - dist-electron/**
   - package.json
+  - '!**/*.map'
+  - '!**/*.tsbuildinfo'
+  - '!**/*.test.*'
+  - '!**/*.spec.*'
+  - '!**/*.md'
+  - '!src/**'
+  - '!tests/**'
+  - '!docs/**'
+  - '!build/icon.svg'
+  - '!build/icons/**'
+  - '!node_modules/7zip-bin/linux/**'
+  - '!node_modules/7zip-bin/mac/**'
+  - '!node_modules/7zip-bin/win/arm64/**'
+  - '!node_modules/7zip-bin/win/ia32/**'
 extraResources:
-  - from: resources/bin/
-    to: bin/
-    filter: ['**/*']
   - from: build/icon.png
     to: icons/icon.png
   - from: build/tray-icon.png
@@ -27,6 +42,7 @@ win:
       arch: [x64]
   requestedExecutionLevel: asInvoker
 nsis:
+  artifactName: ${productName} Setup ${version}.${ext}
   oneClick: false
   allowToChangeInstallationDirectory: true
   installerIcon: build/icon.ico
@@ -35,6 +51,8 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: FFmpeg Studio
+portable:
+  artifactName: ${productName} ${version}.${ext}
 mac:
   icon: build/icon.icns
 linux:
