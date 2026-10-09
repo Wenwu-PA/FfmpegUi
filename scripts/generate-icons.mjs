@@ -18,7 +18,9 @@ for (const size of sizes) {
   await sharp(source).resize(size, size).png().toFile(path.join(icons, `${size}.png`))
   await sharp(source).resize(size, size).png().toFile(path.join(icons, `${size}x${size}.png`))
 }
-await fs.copyFile(path.join(icons, '1024.png'), path.join(build, 'icon.png'))
+await sharp(path.join(icons, '256.png'))
+  .png({ palette: true, quality: 100, effort: 10, dither: 1 })
+  .toFile(path.join(build, 'icon.png'))
 await fs.copyFile(path.join(icons, '32.png'), path.join(root, 'src/renderer/favicon.png'))
 await sharp(path.join(build, 'icon.svg')).resize(32, 32).greyscale().png().toFile(path.join(build, 'tray-icon.png'))
 const icoSizes = [16, 24, 32, 48, 64, 128, 256]
