@@ -42,7 +42,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .avatar { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 8px; background: #272e3a; color: #c5ed9a; font-size: 9px; font-weight: 700; }
 .shield { color: #8dc95b; }
 .main-area { min-width: 0; flex: 1; display: flex; flex-direction: column; }
-.topbar { height: 57px; flex: none; border-bottom: 1px solid #ffffff0a; display: flex; align-items: center; justify-content: space-between; padding: 0 34px; background: #0c0f14b8; }
+.topbar { height: 57px; flex: none; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; padding: 0 34px; background: color-mix(in srgb,var(--bg) 92%,var(--surface)); }
 .breadcrumbs { display: flex; align-items: center; gap: 10px; }
 .breadcrumbs { font-size: 11px; color: #757c89; }
 .breadcrumbs strong { font-weight: 500; color: #d5d8e0; }
@@ -178,7 +178,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; } }
 
 /* User appearance preferences */
-:root { color: var(--text); font-family: var(--ui-font); font-size: calc(13px * var(--ui-scale)); }
+:root { color: var(--text); font-family: var(--ui-font); font-size: calc(13px * var(--ui-scale)); accent-color: var(--accent); }
 body { background: var(--bg); color: var(--text); font-family: var(--ui-font); }
 .app-shell { background-color: var(--bg); color: var(--text); }
 .sidebar { background: var(--sidebar-surface); border-color: var(--line); }
@@ -209,11 +209,22 @@ body { background: var(--bg); color: var(--text); font-family: var(--ui-font); }
 :root[data-density="spacious"] .settings-card,:root[data-density="spacious"] .file-card,:root[data-density="spacious"] .job-card { padding: 22px; margin-bottom: 16px; }
 :root[data-animations="false"] *, :root[data-animations="false"] *::before, :root[data-animations="false"] *::after { animation-duration: 0s !important; transition-duration: 0s !important; scroll-behavior: auto !important; }
 .app-shell[data-sidebar-position="right"] .sidebar { order: 2; border-right: 0; border-left: 1px solid var(--line); }
-.sidebar-collapsed .sidebar { width: 68px; min-width: 68px; padding-inline: 10px; }
-.sidebar-collapsed .brand>div:not(.brand-mark),.sidebar-collapsed .workspace-label,.sidebar-collapsed .engine-card>div,.sidebar-collapsed .user-card>div:not(.profile-avatar) { display: none; }
-.sidebar-collapsed .brand,.sidebar-collapsed .nav-item,.sidebar-collapsed .engine-card,.sidebar-collapsed .user-card { justify-content: center; }
-.sidebar-collapsed .nav-item { padding-inline: 0; }
+.sidebar-collapsed .sidebar { width: 76px; min-width: 76px; padding-inline: 10px; }
+.sidebar-collapsed .brand>div:not(.brand-mark),.sidebar-collapsed .workspace-label,.sidebar-collapsed .user-card>div:not(.profile-avatar) { display: none; }
+.sidebar-collapsed .brand,.sidebar-collapsed .nav-item { justify-content: center; }
+.sidebar-collapsed .nav-item { width: 54px; padding-inline: 0; position: relative; }
+.sidebar-collapsed .nav-item>span:not(.nav-count) { display: none; }
+.sidebar-collapsed .nav-item:hover::after,.sidebar-collapsed .nav-item:focus-visible::after { content: attr(title); position: absolute; z-index: 20; left: calc(100% + 8px); top: 50%; transform: translateY(-50%); padding: 7px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--text); white-space: nowrap; box-shadow: 0 5px 18px #0003; }
 .sidebar-collapsed .nav-count { display: none; }
+.sidebar-collapsed .sidebar-bottom { gap: 7px; }
+.sidebar-collapsed .engine-card { width: 54px; height: 38px; justify-content: center; padding: 0; background: transparent; border-color: transparent; }
+.sidebar-collapsed .engine-card>div:nth-child(2),.sidebar-collapsed .engine-card>svg { display: none; }
+.sidebar-collapsed .engine-dot { width: 9px; height: 9px; }
+.sidebar-collapsed .profile-menu-anchor { width: 54px; }
+.sidebar-collapsed .user-card { width: 54px; height: 54px; justify-content: center; padding: 4px; border-color: transparent; background: transparent; }
+.sidebar-collapsed .user-card>svg { display: none; }
+.sidebar-collapsed .profile-avatar { width: 44px; height: 44px; min-width: 44px; }
+.sidebar-collapsed .profile-menu { min-width: 220px; left: calc(100% + 8px); right: auto; bottom: 0; }
 .appearance-settings { overflow: hidden; }
 .appearance-settings h2 { margin-bottom: 4px; }
 .appearance-settings .appearance-details summary { font-size: 13px; padding-block: 3px; }
@@ -241,7 +252,35 @@ body { background: var(--bg); color: var(--text); font-family: var(--ui-font); }
 .about-mark div { display: grid; gap: 4px; }
 .about-mark span { color: var(--muted); font-size: 11px; }
 .import-theme { display: flex; flex-wrap: wrap; gap: 8px; }
-@media(max-width:800px) { .setting-row { flex-wrap: wrap; } .sidebar-collapsed .sidebar { width: 56px; min-width: 56px; } }
+@media(max-width:800px) { .setting-row { flex-wrap: wrap; } .sidebar-collapsed .sidebar { width: 76px; min-width: 76px; } }
+
+/* Keep the light theme consistent across controls and navigation. */
+:root[data-theme="light"] .app-shell { background-image: none; }
+:root[data-theme="light"] .sidebar { background: var(--surface); border-color: var(--line); }
+:root[data-theme="light"] .topbar { background: var(--surface); border-color: var(--line); }
+:root[data-theme="light"] .brand-name span { color: var(--accent); }
+:root[data-theme="light"] .brand-caption,:root[data-theme="light"] .workspace-label,:root[data-theme="light"] .breadcrumbs { color: var(--muted); }
+:root[data-theme="light"] .breadcrumbs strong { color: var(--text); }
+:root[data-theme="light"] .nav-item { color: var(--muted); }
+:root[data-theme="light"] .nav-item:hover,:root[data-theme="light"] .nav-item.active { background: color-mix(in srgb,var(--accent) 13%,var(--surface)); color: var(--text); }
+:root[data-theme="light"] .engine-card,:root[data-theme="light"] .user-card { background: var(--bg); border-color: var(--line); }
+:root[data-theme="light"] .engine-card strong,:root[data-theme="light"] .user-card strong { color: var(--text); }
+:root[data-theme="light"] .engine-card span { color: var(--muted); }
+:root[data-theme="light"] .settings-card,:root[data-theme="light"] .file-card,:root[data-theme="light"] .merge-item,:root[data-theme="light"] .job-card,:root[data-theme="light"] .history-item,:root[data-theme="light"] .queue-card { background: var(--surface); border-color: var(--line); }
+:root[data-theme="light"] .settings-card .field select,:root[data-theme="light"] .settings-card .field input:not([type="range"]):not([type="checkbox"]),:root[data-theme="light"] .field select,:root[data-theme="light"] .field input:not([type="range"]):not([type="checkbox"]),:root[data-theme="light"] .trim-times input { background: var(--surface); border-color: var(--line); color: var(--text); color-scheme: light; }
+:root[data-theme="light"] .settings-card .field label,:root[data-theme="light"] .field label,:root[data-theme="light"] .setting-row>label { color: var(--text); }
+:root[data-theme="light"] .appearance-details,:root[data-theme="light"] .setting-row { border-color: var(--line); }
+:root[data-theme="light"] .secondary-button,:root[data-theme="light"] .mode-toggle { background: var(--surface); border-color: var(--line); color: var(--text); }
+:root[data-theme="light"] .secondary-button:hover { background: color-mix(in srgb,var(--surface) 90%,var(--text)); }
+:root[data-theme="light"] .dropzone { background: color-mix(in srgb,var(--surface) 90%,var(--bg)); border-color: var(--line); }
+:root[data-theme="light"] .drop-copy strong,:root[data-theme="light"] .preset-copy strong,:root[data-theme="light"] .file-info>strong,:root[data-theme="light"] .merge-file strong,:root[data-theme="light"] .job-title strong,:root[data-theme="light"] .output-label strong { color: var(--text); }
+:root[data-theme="light"] .drop-copy span,:root[data-theme="light"] .file-meta,:root[data-theme="light"] .preset-copy span,:root[data-theme="light"] .file-info>span,:root[data-theme="light"] .section-header p,:root[data-theme="light"] .settings-card>p { color: var(--muted); }
+:root[data-theme="light"] .preset-card,:root[data-theme="light"] .output-section,:root[data-theme="light"] .trim-tools,:root[data-theme="light"] .advanced-panel { background: var(--surface); border-color: var(--line); }
+:root[data-theme="light"] .preset-icon,:root[data-theme="light"] .upload-icon,:root[data-theme="light"] .file-preview,:root[data-theme="light"] .empty-icon { background: var(--bg); border-color: var(--line); }
+:root[data-theme="light"] .profile-menu { box-shadow: 0 10px 32px #14203324; }
+.appearance-settings .setting-row { flex-wrap: wrap; align-items: center; }
+.appearance-settings .setting-row>.field { flex: 1 1 210px; min-width: min(210px,100%); }
+:root[data-theme="light"] .sidebar-collapsed .engine-card,:root[data-theme="light"] .sidebar-collapsed .user-card { background: transparent; border-color: transparent; }
 
 :root[data-background="image"] .app-shell { background-image: radial-gradient(ellipse at 74% -30%,#172019,transparent 42%),var(--bg); isolation: isolate; }
 :root[data-background="image"] .main-area,:root[data-background="image"] .content-scroll { background: transparent !important; }
