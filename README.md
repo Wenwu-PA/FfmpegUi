@@ -1,8 +1,10 @@
 # FFmpeg Studio
 
-**FFmpeg Studio** — настольная оболочка для локальной конвертации видео и аудио с помощью FFmpeg. Приложение не отправляет медиафайлы и не содержит телеметрию.
+**FFmpeg Studio** — настольное приложение для конвертации видео и аудио с помощью FFmpeg.
 
-![Главное окно FFmpeg Studio](docs/screenshot.png)
+![Главный экран и конвертер, 1920×1080](docs/screenshots/converter-1920x1080.webp)
+
+Другие экраны: [конвертер 1280×720](docs/screenshots/converter-1280x720.webp), [очередь 1920×1080](docs/screenshots/queue-1920x1080.webp), [оформление 1920×1080](docs/screenshots/appearance-1920x1080.webp), [настройки FFmpeg 1920×1080](docs/screenshots/ffmpeg-1920x1080.webp), [первый запуск](docs/screenshots/first-run-1280x720.webp). Все изображения находятся в [docs/screenshots](docs/screenshots/) и занимают меньше 300 КБ каждое.
 
 ## Возможности
 
@@ -46,9 +48,22 @@ npm run dist
 
 `npm run dist` собирает NSIS-установщик и portable версию Windows. Разработка macOS и Linux сборок пока не настроена.
 
+Размер сборки до и после оптимизации (Windows x64, округлено до МиБ):
+
+| Артефакт | До | После |
+| --- | ---: | ---: |
+| NSIS установщик | 109.71 | 100.71 |
+| Portable | 109.49 | 100.44 |
+| Распакованное приложение | 419.71 | 339.86 |
+| `resources/app.asar` | 39.91 | 17.21 |
+| `app.asar.unpacked` | 11.73 | 1.18 |
+| Локали Chromium | 48.30 | 1.70 |
+
+В установщик не входят исполняемые файлы FFmpeg; приложение загружает их отдельно по запросу. Сборка включает только русскую и американскую английскую локали Chromium. RAM при простое и кодировании не замерялась.
+
 ## Английский
 
-FFmpeg Studio is a local desktop interface for common FFmpeg conversion workflows. Media is processed on your device and telemetry is not included.
+FFmpeg Studio is a desktop interface for common FFmpeg conversion workflows.
 
 ## Структура
 
