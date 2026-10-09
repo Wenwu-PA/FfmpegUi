@@ -21,4 +21,9 @@ contextBridge.exposeInMainWorld('ffmpegStudio', {
     ipcRenderer.on('job:progress', listener)
     return () => ipcRenderer.removeListener('job:progress', listener)
   },
+  onQueuePause: (callback: (paused: boolean) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, paused: boolean) => callback(paused)
+    ipcRenderer.on('queue:toggle', listener)
+    return () => ipcRenderer.removeListener('queue:toggle', listener)
+  },
 })

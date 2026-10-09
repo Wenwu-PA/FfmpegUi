@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Activity, AudioLines, Check, ChevronDown, ChevronUp, Clapperboard, Clock3, FileAudio2, FileVideo2, FolderOpen, Gauge, History, MoreHorizontal, Play, Plus, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Trash2, Upload, WandSparkles, X } from 'lucide-react'
 import type { MediaFile, ProbeResult } from '../shared/types'
 import { buildFfmpegArgs } from '../shared/buildFfmpegArgs'
@@ -41,11 +41,14 @@ export function App() {
   const [jobs, setJobs] = useState<{ id: string; name: string; progress: number; status: 'working' | 'done' | 'error' | 'cancelled'; error?: string }[]>([])
   const [dragging, setDragging] = useState(false)
   const [toast, setToast] = useState('')
+  const queuePausedRef = useRef(false)
 
   useEffect(() => {
     void window.ffmpegStudio.getSettings().then(settings => { if (settings.outputDir) setOutputDir(settings.outputDir) })
     void window.ffmpegStudio.ffmpegStatus().then(setFfmpeg)
-    return window.ffmpegStudio.onProgress(progress => setJobs(current => current.map(job => job.id === progress.id ? { ...job, progress: progress.percent } : job)))
+    const unsubscribeProgress = window.ffmpegStudio.onProgress(progress => setJobs(current => current.map(job => job.id === progress.id ? { ...job, progress: progress.percent } : job)))
+    const unsubscribeQueue = window.ffmpegStudio.onQueuePause(paused => { queuePausedRef.current = paused })
+    return () => { unsubscribeProgress(); unsubscribeQueue() }
   }, [])
 
   const outputPath = useMemo(() => outputDir || 'Папка с исходным файлом', [outputDir])
@@ -79,6 +82,7 @@ export function App() {
       return
     }
     for (const file of files.filter(item => !item.error)) {
+      while (queuePausedRef.current) await new Promise(resolve => setTimeout(resolve, 200))
       const id = crypto.randomUUID()
       const extension = compressMode ? 'mp4' : preset.id === 'mp3' || preset.id === 'gif' ? preset.extension : targetFormat
       const stem = file.name.replace(/\.[^.]+$/, '')

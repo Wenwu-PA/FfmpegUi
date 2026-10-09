@@ -15,6 +15,7 @@ declare global {
       merge(job: unknown): Promise<{ ok: boolean; output?: string }>
       compress(job: unknown): Promise<{ ok: boolean; output?: string }>
       reveal(file: string): Promise<void>; open(file: string): Promise<string>; onProgress(callback: (progress: { id: string } & FfmpegProgress) => void): () => void
+      onQueuePause(callback: (paused: boolean) => void): () => void
     }
   }
 }

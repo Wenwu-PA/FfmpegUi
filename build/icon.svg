@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="120" y1="100" x2="900" y2="930" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#60E6C2"/><stop offset=".52" stop-color="#32A9E8"/><stop offset="1" stop-color="#7566F3"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="240" y1="170" x2="770" y2="860" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff" stop-opacity=".24"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="72" y="72" width="880" height="880" rx="224" fill="#101820"/>
+  <rect x="96" y="96" width="832" height="832" rx="208" fill="url(#bg)"/>
+  <path d="M304 96h132L262 928H130zM616 96h132L574 928H442z" fill="url(#shine)"/>
+  <path d="M398 310c-24-15-54 2-54 30v344c0 28 30 45 54 30l276-172c22-14 22-46 0-60L398 310Z" fill="#101820" fill-opacity=".92"/>
+  <path d="m414 391 207 129-207 129V391Z" fill="#fff"/>
+  <path d="M230 224h38v48h-38zm0 112h38v48h-38zm0 112h38v48h-38zm0 112h38v48h-38zm0 112h38v48h-38zm0 112h38v48h-38zm526-560h38v48h-38zm0 112h38v48h-38zm0 112h38v48h-38zm0 112h38v48h-38zm0 112h38v48h-38zm0 112h38v48h-38z" fill="#fff" fill-opacity=".88"/>
+</svg>

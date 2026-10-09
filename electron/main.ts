@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell, protocol, net } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell, protocol, net, Menu, nativeImage, Tray } from 'electron'
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
@@ -16,6 +16,7 @@ const mediaPaths = new Set<string>()
 const localPathSchema = z.string().min(1).refine(file => path.isAbsolute(file) && !/[\r\n\0]/.test(file), 'Expected an absolute local path')
 const ffmpegArgsSchema = z.array(z.string().max(2048).refine(argument => !/^-(?:f|i|protocol_whitelist|protocol_blacklist|filter_complex|lavfi|progress|nostats)$/i.test(argument) && !/^(?:https?|tcp|udp|rtmp|smb):/i.test(argument), 'Unsafe FFmpeg argument')).max(100)
 let mainWindow: BrowserWindow | null = null
+let tray: Tray | null = null
 let quitWhenIdle = false
 let allowQuit = false
 let quitTimer: NodeJS.Timeout | undefined
@@ -212,20 +213,38 @@ function registerIpc() {
 }
 
 async function createWindow() {
-  mainWindow = new BrowserWindow({ width: 1440, height: 920, minWidth: 960, minHeight: 600, backgroundColor: '#0b0d12', title: 'FFmpeg Studio', webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true } })
+  const iconPath = app.isPackaged ? path.join(process.resourcesPath, 'icons', 'icon.png') : path.join(app.getAppPath(), 'build', 'icon.png')
+  mainWindow = new BrowserWindow({ width: 1440, height: 920, minWidth: 960, minHeight: 600, backgroundColor: '#0b0d12', title: 'FFmpeg Studio', icon: iconPath, webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true } })
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   mainWindow.webContents.on('will-navigate', event => event.preventDefault())
   if (process.env.VITE_DEV_SERVER_URL) await mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL)
   else await mainWindow.loadFile(path.join(__dirname, '../../dist/index.html'))
 }
 
+function createTray() {
+  const iconPath = app.isPackaged ? path.join(process.resourcesPath, 'icons', 'tray-icon.png') : path.join(app.getAppPath(), 'build', 'tray-icon.png')
+  tray = new Tray(nativeImage.createFromPath(iconPath))
+  tray.setToolTip('FFmpeg Studio')
+  let paused = false
+  const show = () => { if (!mainWindow) void createWindow(); else { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); mainWindow.focus() } }
+  const menu = () => Menu.buildFromTemplate([
+    { label: 'Показать', click: show },
+    { label: paused ? 'Очередь: продолжить' : 'Очередь: пауза', click: () => { paused = !paused; mainWindow?.webContents.send('queue:toggle', paused); tray?.setContextMenu(menu()) } },
+    { type: 'separator' },
+    { label: 'Выход', click: () => app.quit() },
+  ])
+  tray.setContextMenu(menu())
+  tray.on('double-click', show)
+}
+
 app.whenReady().then(() => {
+  if (process.platform === 'win32') app.setAppUserModelId('com.frameforge.ffmpegstudio')
   protocol.handle('app-media', request => {
     const file = new URL(request.url).searchParams.get('path')
     if (!file || !mediaPaths.has(path.resolve(file))) return new Response('Forbidden', { status: 403 })
     return net.fetch(pathToFileURL(file).toString())
   })
-  registerIpc(); void createWindow()
+  registerIpc(); createTray(); void createWindow()
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) void createWindow() })
 })
 app.on('before-quit', event => {

@@ -1,5 +1,7 @@
 appId: com.frameforge.ffmpegstudio
 productName: FFmpeg Studio
+copyright: Copyright © 2026 Wenwu-PA
+artifactName: ${productName}-${version}-${arch}.${ext}
 directories:
   output: release
 files:
@@ -10,12 +12,28 @@ extraResources:
   - from: resources/bin/
     to: bin/
     filter: ['**/*']
+  - from: build/icon.png
+    to: icons/icon.png
+  - from: build/tray-icon.png
+    to: icons/tray-icon.png
 win:
+  icon: build/icon.ico
   target:
     - target: nsis
       arch: [x64]
     - target: portable
       arch: [x64]
+  requestedExecutionLevel: asInvoker
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: FFmpeg Studio
+mac:
+  icon: build/icon.icns
+linux:
+  icon: build/icons
