@@ -16,6 +16,8 @@ extraResources:
     to: icons/icon.png
   - from: build/tray-icon.png
     to: icons/tray-icon.png
+  - from: resources/ffmpeg-sources.json
+    to: ffmpeg-sources.json
 win:
   icon: build/icon.ico
   target:

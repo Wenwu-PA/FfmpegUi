@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "windows": {
+      "stable": {
+      "essentials": { "url": "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip", "sha256Url": "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip.sha256", "versionUrl": "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip.ver", "format": "zip", "version": "release" },
+      "full": { "url": "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-full.7z", "sha256Url": "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-full.7z.sha256", "versionUrl": "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-full.7z.ver", "format": "7z", "version": "release" }
+    },
+    "latest": {
+      "essentials": { "url": "https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-essentials.7z", "sha256Url": "https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-essentials.7z.sha256", "versionUrl": "https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-essentials.7z.ver", "format": "7z", "version": "git-latest" },
+      "full": { "url": "https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-full.7z", "sha256Url": "https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-full.7z.sha256", "versionUrl": "https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-full.7z.ver", "format": "7z", "version": "git-latest" }
+    },
+    "fallback": {
+      "stable": "https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest",
+      "latest": "https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest",
+      "assetPattern": "win64-gpl.zip"
+    }
+  },
+  "macos": {
+    "stable": { "ffmpeg": "https://evermeet.cx/ffmpeg/getrelease/zip", "ffprobe": "https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip", "format": "zip", "version": "release" },
+    "latest": { "ffmpeg": "https://evermeet.cx/ffmpeg/get/zip", "ffprobe": "https://evermeet.cx/ffmpeg/get/ffprobe/zip", "format": "zip", "version": "snapshot" }
+  },
+  "linux": {
+    "stable": { "url": "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz", "format": "tar.xz", "version": "release" },
+    "latest": { "url": "https://johnvansickle.com/ffmpeg/builds/ffmpeg-git-amd64-static.tar.xz", "format": "tar.xz", "version": "git-latest" }
+  }
+}

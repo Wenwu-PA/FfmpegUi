@@ -9,9 +9,12 @@ declare global {
     interface Window {
     ffmpegStudio: {
       getPathForFile(file: File): string
-      chooseFiles(): Promise<string[]>; chooseDirectory(): Promise<string | null>; getSettings(): Promise<{ ffmpegPath?: string; outputDir?: string; theme: string }>
+      chooseFiles(): Promise<string[]>; chooseDirectory(): Promise<string | null>; getSettings(): Promise<{ ffmpegPath?: string; outputDir?: string; theme: string; proxy?: string }>
       setSettings(value: unknown): Promise<boolean>; probe(file: string): Promise<ProbeResult>; thumbnail(file: string): Promise<string>
-      convert(job: unknown): Promise<{ ok: boolean; output?: string }>; cancel(id: string): Promise<void>; ffmpegStatus(): Promise<{ available: boolean; version: string; path: string }>
+      convert(job: unknown): Promise<{ ok: boolean; output?: string }>; cancel(id: string): Promise<void>; ffmpegStatus(): Promise<{ available: boolean; version: string; path: string; source?: string; encoders?: string[]; gpu?: string[]; versions?: string[]; activeVersion?: string }>
+      installFfmpeg(options: { build: 'essentials' | 'full'; channel: 'stable' | 'latest' }): Promise<{ ok: boolean; version: string; path: string }>
+      cancelFfmpegDownload(): Promise<void>; installFfmpegOffline(): Promise<unknown>; chooseFfmpegPath(): Promise<unknown>; removeFfmpeg(): Promise<unknown>; switchFfmpegVersion(version: string): Promise<unknown>; testFfmpeg(): Promise<boolean>
+      onFfmpegDownloadProgress(callback: (progress: { received: number; total: number; percent: number; speed: number; eta: number | null }) => void): () => void
       merge(job: unknown): Promise<{ ok: boolean; output?: string }>
       compress(job: unknown): Promise<{ ok: boolean; output?: string }>
       reveal(file: string): Promise<void>; open(file: string): Promise<string>; onProgress(callback: (progress: { id: string } & FfmpegProgress) => void): () => void

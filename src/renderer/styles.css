@@ -153,6 +153,9 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .setting-path { min-width: 0; display: grid; gap: 4px; }
 .setting-path strong { font-size: 10px; color: #d9dce4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .setting-path span { font-size: 9px; color: #818894; }
+.download-progress { display: flex; align-items: center; gap: 12px; margin-top: 12px; color: #aab0bb; font-size: 10px; }
+.download-progress .progress-track { flex: 1; }
+.settings-card .field select,.settings-card .field input { min-width: 150px; padding: 7px 9px; border: 1px solid #303744; border-radius: 6px; background: #171b23; color: #d1d5de; font-size: 10px; }
 .privacy-note { display: flex; gap: 11px; padding: 13px; border: 1px solid #a6f15e20; background: #a6f15e08; border-radius: 9px; color: #9bd461; }
 .privacy-note span { display: grid; gap: 5px; font-size: 10px; color: #899280; }
 .privacy-note strong { font-size: 11px; color: #c0e89b; }
