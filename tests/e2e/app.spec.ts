@@ -5,6 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { buildFfmpegArgs } from '../../src/shared/buildFfmpegArgs'
 import { calculateTargetVideoBitrateKbps } from '../../src/shared/targetSize'
+import { captureScreenshot } from './captureScreenshot'
 
 test('starts, probes a generated clip and converts it through the Electron bridge', async () => {
   const folder = mkdtempSync(path.join(os.tmpdir(), 'ffmpeg studio проверка-'))
@@ -17,13 +18,17 @@ test('starts, probes a generated clip and converts it through the Electron bridg
   const generatedSecond = spawnSync('ffmpeg', ['-y', '-f', 'lavfi', '-i', 'testsrc2=duration=2:size=320x240:rate=25', '-pix_fmt', 'yuv420p', secondInput], { encoding: 'utf8' })
   expect(generatedSecond.status, generatedSecond.stderr).toBe(0)
 
-  const app = await electron.launch({ args: ['.'], cwd: process.cwd() })
+  const app = await electron.launch({ args: ['.', `--user-data-dir=${folder}`], cwd: process.cwd() })
   try {
     const page = await app.firstWindow()
+    await page.setViewportSize({ width: 1280, height: 720 })
+    await page.evaluate(() => window.ffmpegStudio.setProfileName('Alex'))
+    await page.reload()
     page.on('console', message => process.stdout.write(`[renderer] ${message.type()}: ${message.text()}\n`))
     page.on('pageerror', error => process.stdout.write(`[renderer-error] ${error.message}\n`))
     await expect(page.getByRole('heading', { name: 'Конвертер' })).toBeVisible()
-    await page.screenshot({ path: path.join(process.cwd(), 'docs', 'screenshot.png') })
+    await page.evaluate(() => document.fonts.ready)
+    await captureScreenshot(page, 'converter-1280x720.webp')
     const probe = await page.evaluate(file => window.ffmpegStudio.probe(file), input)
     expect(probe.streams.some(stream => stream.codec_type === 'video')).toBe(true)
     const thumbnail = await page.evaluate(file => window.ffmpegStudio.thumbnail(file), input)

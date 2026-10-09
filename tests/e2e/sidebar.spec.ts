@@ -2,12 +2,14 @@ import { _electron as electron, expect, test } from '@playwright/test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { captureScreenshot } from './captureScreenshot'
 
 test('collapsed profile and its menu stay centered and inside either edge of the window', async () => {
   const folder = mkdtempSync(path.join(os.tmpdir(), 'ffmpeg-studio-sidebar-'))
   const app = await electron.launch({ args: ['.', `--user-data-dir=${folder}`], cwd: process.cwd() })
   try {
     const page = await app.firstWindow()
+    await page.setViewportSize({ width: 1280, height: 720 })
     await expect(page.getByRole('heading', { name: 'Конвертер' })).toBeVisible()
     await page.evaluate(() => window.ffmpegStudio.setProfileName('Alexandra Schwarzenegger Profile'))
     await page.reload()
@@ -20,6 +22,15 @@ test('collapsed profile and its menu stay centered and inside either edge of the
       await page.evaluate(position => {
         document.querySelector('.app-shell')?.setAttribute('data-sidebar-position', position)
       }, side)
+      const navigationButton = page.getByRole('button', { name: 'Конвертер' })
+      await navigationButton.hover()
+      const navigationTooltip = await navigationButton.evaluate(button => ({
+        text: getComputedStyle(button, '::after').content,
+        width: Number.parseFloat(getComputedStyle(button, '::after').width),
+      }))
+      expect(navigationTooltip.text).toContain('Конвертер')
+      expect(navigationTooltip.width).toBeGreaterThan(45)
+      expect(navigationTooltip.width).toBeLessThanOrEqual(220)
       const alignment = await page.locator('.user-card').evaluate(button => {
         const buttonRect = button.getBoundingClientRect()
         const avatarRect = button.querySelector('.profile-avatar')!.getBoundingClientRect()
@@ -51,6 +62,12 @@ test('collapsed profile and its menu stay centered and inside either edge of the
       await expect(menu).toBeHidden()
       await expect(profileButton).toBeFocused()
     }
+    await page.evaluate(() => {
+      document.querySelector('.app-shell')?.setAttribute('data-sidebar-position', 'left')
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+    })
+    await page.mouse.move(640, 360)
+    await captureScreenshot(page, 'sidebar-collapsed-1280x720.webp')
   } finally {
     await app.close()
     rmSync(folder, { recursive: true, force: true })
