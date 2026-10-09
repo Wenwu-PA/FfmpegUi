@@ -238,3 +238,12 @@ body { background: var(--bg); color: var(--text); font-family: var(--ui-font); }
 .about-mark span { color: var(--muted); font-size: 11px; }
 .import-theme { display: flex; flex-wrap: wrap; gap: 8px; }
 @media(max-width:800px) { .setting-row { flex-wrap: wrap; } .sidebar-collapsed .sidebar { width: 56px; min-width: 56px; } }
+
+:root[data-background="image"] .app-shell { background-image: radial-gradient(ellipse at 74% -30%,#172019,transparent 42%),var(--bg); isolation: isolate; }
+:root[data-background="image"] .app-shell::before { content: ""; position: absolute; z-index: 0; inset: -24px; pointer-events: none; background-image: linear-gradient(rgba(8,12,18,var(--background-dim)),rgba(8,12,18,var(--background-dim))),var(--app-bg-image); background-size: cover; background-position: center; background-attachment: fixed; filter: blur(var(--glass-blur)); }
+:root[data-background="image"] .app-shell>aside,:root[data-background="image"] .app-shell>.main-area { position: relative; z-index: 1; }
+:root[data-background="image"] .sidebar { background: color-mix(in srgb,var(--surface) 72%,transparent); backdrop-filter: blur(12px); }
+:root[data-background="image"] .topbar { background: color-mix(in srgb,var(--bg) 55%,transparent); }
+:root[data-background="image"] .settings-card,:root[data-background="image"] .file-card,:root[data-background="image"] .merge-item,:root[data-background="image"] .job-card,:root[data-background="image"] .history-item { background: color-mix(in srgb,var(--surface) 72%,transparent); backdrop-filter: blur(var(--glass-blur)); }
+.background-preview { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
+.background-preview img { width: 180px; height: 82px; object-fit: cover; border: 1px solid var(--line); border-radius: 8px; }

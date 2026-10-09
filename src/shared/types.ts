@@ -9,7 +9,7 @@ declare global {
     interface Window {
     ffmpegStudio: {
       getPathForFile(file: File): string
-      chooseFiles(): Promise<string[]>; chooseDirectory(): Promise<string | null>; getSettings(): Promise<{ ffmpegPath?: string; outputDir?: string; theme: string; proxy?: string; appearance?: import('./appearance').Appearance; appearanceProfiles?: { name: string; appearance: import('./appearance').Appearance }[]; settingsVersion?: number }>
+      chooseFiles(): Promise<string[]>; chooseDirectory(): Promise<string | null>; getSettings(): Promise<{ ffmpegPath?: string; outputDir?: string; theme: string; proxy?: string; appearance?: import('./appearance').Appearance; appearanceProfiles?: { name: string; appearance: import('./appearance').Appearance }[]; settingsVersion?: number; backgroundWarning?: string }>
       setSettings(value: unknown): Promise<boolean>; probe(file: string): Promise<ProbeResult>; thumbnail(file: string): Promise<string>
       chooseBackgroundImage(): Promise<string | null>; appInfo(): Promise<{ version: string; license: string; repository: string; ffmpegLicense: string }>; openRepository(): Promise<void>
       convert(job: unknown): Promise<{ ok: boolean; output?: string }>; cancel(id: string): Promise<void>; ffmpegStatus(): Promise<{ available: boolean; version: string; path: string; source?: string; encoders?: string[]; gpu?: string[]; versions?: string[]; activeVersion?: string }>

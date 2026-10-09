@@ -15,6 +15,12 @@ import { appearanceSchema, defaultAppearance, type Appearance } from '../src/sha
 type WindowBounds = { x?: number; y?: number; width: number; height: number }
 type SettingsData = { ffmpegPath?: string; outputDir?: string; ffmpegVersion?: string; proxy?: string; appearance?: Appearance; appearanceProfiles?: { name: string; appearance: Appearance }[]; settingsVersion?: number; windowBounds?: WindowBounds }
 const settingsFile = path.join(app.getPath('userData'), 'settings.json')
+const backgroundDirectory = path.join(app.getPath('userData'), 'backgrounds')
+const backgroundReferenceSchema = z.string().regex(/^app-bg:\/\/background\/[\da-f-]{36}\.jpg\?v=\d+$/i)
+const backgroundPathFromReference = (reference?: string) => {
+  const match = reference?.match(/^app-bg:\/\/background\/([\da-f-]{36})\.jpg\?v=\d+$/i)
+  return match ? path.join(backgroundDirectory, `${match[1]}.jpg`) : undefined
+}
 let legacyTheme: Appearance['theme'] = 'dark'
 if (existsSync(settingsFile)) {
   try {
@@ -49,7 +55,10 @@ function finishQuitWhenIdle() {
   }
 }
 
-protocol.registerSchemesAsPrivileged([{ scheme: 'app-media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }])
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'app-media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
+  { scheme: 'app-bg', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+])
 
 const run = (bin: string, args: string[], timeoutMs = 15_000) => new Promise<string>((resolve, reject) => {
   const child = spawn(bin, args, { windowsHide: true })
@@ -286,10 +295,32 @@ function friendlyFfmpegError(log: string, code: number | null): string {
 function registerIpc() {
   ipcMain.handle('dialog:files', async () => (await dialog.showOpenDialog({ properties: ['openFile', 'multiSelections'], filters: [{ name: 'Медиа', extensions: ['mp4','mkv','mov','webm','avi','mp3','wav','flac','m4a','ogg','png','jpg','jpeg','webp','gif'] }] })).filePaths)
   ipcMain.handle('dialog:directory', async () => (await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] })).filePaths[0] ?? null)
-  ipcMain.handle('settings:get', () => ({ ffmpegPath: settings.get('ffmpegPath'), outputDir: settings.get('outputDir'), theme: settings.get('appearance')?.theme ?? 'dark', proxy: settings.get('proxy') ?? '', appearance: settings.get('appearance') ?? defaultAppearance, appearanceProfiles: settings.get('appearanceProfiles') ?? [], settingsVersion: settings.get('settingsVersion') ?? 2 }))
+  ipcMain.handle('settings:get', async () => {
+    let appearance = settings.get('appearance') ?? defaultAppearance
+    let backgroundWarning: string | undefined
+    if (appearance.background === 'image') {
+      try {
+        const file = backgroundPathFromReference(appearance.backgroundImage)
+        if (!file) throw new Error('Missing background reference')
+        const fileInfo = await stat(file)
+        if (fileInfo.size < 1 || nativeImage.createFromPath(file).isEmpty()) throw new Error('Invalid stored image')
+      } catch {
+        appearance = appearanceSchema.parse({ ...appearance, background: 'gradient', backgroundImage: undefined })
+        settings.set('appearance', appearance)
+        backgroundWarning = 'Фоновая картинка недоступна. Возвращён градиент.'
+      }
+    } else if (appearance.backgroundImage?.startsWith('data:')) {
+      appearance = appearanceSchema.parse({ ...appearance, background: 'gradient', backgroundImage: undefined })
+      settings.set('appearance', appearance)
+      backgroundWarning = 'Старое изображение фона было удалено из настроек. Выберите его снова.'
+    }
+    return { ffmpegPath: settings.get('ffmpegPath'), outputDir: settings.get('outputDir'), theme: appearance.theme, proxy: settings.get('proxy') ?? '', appearance, appearanceProfiles: settings.get('appearanceProfiles') ?? [], settingsVersion: settings.get('settingsVersion') ?? 2, backgroundWarning }
+  })
   ipcMain.handle('settings:set', (_event, input: unknown) => {
-    const appearancePatch = appearanceSchema.partial().extend({ colors: appearanceSchema.shape.colors.optional(), hotkeys: appearanceSchema.shape.hotkeys.optional() })
-    const value = z.object({ ffmpegPath: localPathSchema.optional(), outputDir: localPathSchema.optional(), theme: z.enum(['dark','light','system']).optional(), proxy: z.string().max(500).optional(), appearance: appearancePatch.optional(), appearanceProfiles: z.array(z.object({ name: z.string().min(1).max(40), appearance: appearanceSchema })).max(20).optional() }).parse(input)
+    const backgroundReference = backgroundReferenceSchema
+    const appearancePatch = appearanceSchema.partial().extend({ colors: appearanceSchema.shape.colors.optional(), hotkeys: appearanceSchema.shape.hotkeys.optional(), backgroundImage: backgroundReference.optional() })
+    const storedAppearanceSchema = appearanceSchema.extend({ backgroundImage: backgroundReference.optional() })
+    const value = z.object({ ffmpegPath: localPathSchema.optional(), outputDir: localPathSchema.optional(), theme: z.enum(['dark','light','system']).optional(), proxy: z.string().max(500).optional(), appearance: appearancePatch.optional(), appearanceProfiles: z.array(z.object({ name: z.string().min(1).max(40), appearance: storedAppearanceSchema })).max(20).optional() }).parse(input)
     if (value.ffmpegPath !== undefined) settings.set('ffmpegPath', value.ffmpegPath)
     if (value.outputDir !== undefined) settings.set('outputDir', value.outputDir)
     if (value.proxy !== undefined) settings.set('proxy', value.proxy)
@@ -308,10 +339,19 @@ function registerIpc() {
     const file = choice.filePaths[0]
     if (!file) return null
     const info = await stat(file)
-    if (info.size > 5 * 1024 * 1024) throw new Error('Размер изображения фона не должен превышать 5 МБ.')
-    const extension = path.extname(file).toLowerCase()
-    const mime = extension === '.png' ? 'image/png' : extension === '.webp' ? 'image/webp' : 'image/jpeg'
-    return `data:${mime};base64,${(await readFile(file)).toString('base64')}`
+    if (info.size > 30 * 1024 * 1024) throw new Error('Размер исходного изображения не должен превышать 30 МБ.')
+    const image = nativeImage.createFromPath(file)
+    if (image.isEmpty()) throw new Error('Не удалось прочитать изображение. Выберите PNG, JPEG или WebP.')
+    const { width, height } = image.getSize()
+    if (!width || !height) throw new Error('Размер изображения не распознан.')
+    const longestSide = Math.max(width, height)
+    const resized = longestSide > 2560 ? image.resize({ width: Math.round(width * 2560 / longestSide), height: Math.round(height * 2560 / longestSide), quality: 'good' }) : image
+    const bytes = resized.toJPEG(85)
+    await mkdir(backgroundDirectory, { recursive: true })
+    const backgroundId = randomUUID()
+    const backgroundFile = path.join(backgroundDirectory, `${backgroundId}.jpg`)
+    await writeFile(backgroundFile, bytes)
+    return `app-bg://background/${backgroundId}.jpg?v=${Date.now()}`
   })
   ipcMain.handle('app:info', () => ({ version: app.getVersion(), license: 'MIT', repository: 'https://github.com/Wenwu-PA/FfmpegUi', ffmpegLicense: 'FFmpeg лицензируется по LGPL или GPL в зависимости от выбранной сборки и её компонентов.' }))
   ipcMain.handle('app:open-repository', () => shell.openExternal('https://github.com/Wenwu-PA/FfmpegUi'))
@@ -590,6 +630,15 @@ app.whenReady().then(() => {
     const file = new URL(request.url).searchParams.get('path')
     if (!file || !mediaPaths.has(path.resolve(file))) return new Response('Forbidden', { status: 403 })
     return net.fetch(pathToFileURL(file).toString())
+  })
+  protocol.handle('app-bg', async request => {
+    const url = new URL(request.url)
+    const file = backgroundPathFromReference(`app-bg://background${url.pathname}?v=${url.searchParams.get('v') ?? ''}`)
+    if (url.host !== 'background' || !file) return new Response('Not found', { status: 404 })
+    try {
+      const bytes = await readFile(file)
+      return new Response(bytes, { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } })
+    } catch { return new Response('Not found', { status: 404 }) }
   })
   registerIpc(); createTray(); void refreshFfmpegSelection().then(() => createWindow())
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) void createWindow() })
