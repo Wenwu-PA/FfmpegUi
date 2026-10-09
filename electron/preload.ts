@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('ffmpegStudio', {
   compress: (job: unknown) => ipcRenderer.invoke('media:compress', job),
   cancel: (id: string) => ipcRenderer.invoke('job:cancel', id),
   ffmpegStatus: () => ipcRenderer.invoke('ffmpeg:status'),
+  recheckCodecs: () => ipcRenderer.invoke('ffmpeg:recheck-codecs') as Promise<boolean>,
   installFfmpeg: (options: { build: 'essentials' | 'full'; channel: 'stable' | 'latest' }) => ipcRenderer.invoke('ffmpeg:install', options),
   cancelFfmpegDownload: () => ipcRenderer.invoke('ffmpeg:cancel-download'),
   installFfmpegOffline: () => ipcRenderer.invoke('ffmpeg:install-offline'),

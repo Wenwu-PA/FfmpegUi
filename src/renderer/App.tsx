@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { Activity, AudioLines, Check, ChevronDown, ChevronUp, Clapperboard, Clock3, FileAudio2, FileVideo2, FolderOpen, Gauge, History, MoreHorizontal, Play, Plus, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Trash2, Upload, WandSparkles, X } from 'lucide-react'
 import type { MediaFile, ProbeResult } from '../shared/types'
 import { buildFfmpegArgs } from '../shared/buildFfmpegArgs'
+import { codecById, codecRegistry, codecsOfType, defaultAudioCodecForContainer, defaultVideoCodecForContainer, isCodecContainerCompatible, type QualityMode } from '../shared/codecs'
 import { calculateTargetVideoBitrateKbps } from '../shared/targetSize'
 import { appearanceColorTokens, appearanceSchema, defaultAppearance, palettes, paletteNames, readableAccentText, type Appearance } from '../shared/appearance'
 import { t as translate, type Language } from '../shared/i18n'
@@ -136,9 +137,15 @@ function FfmpegSettings({ status, onStatus, language }: { status: FfmpegStatus; 
     try { await window.ffmpegStudio.chooseFfmpegPath(); onStatus(await window.ffmpegStudio.ffmpegStatus()) }
     catch (error) { setMessage(error instanceof Error ? tr(error.message) : tr("Путь FFmpeg не прошёл проверку.")) }
   }
+  const recheckCodecs = async () => {
+    setBusy(true); setMessage('')
+    try { await window.ffmpegStudio.recheckCodecs(); onStatus(await window.ffmpegStudio.ffmpegStatus()); setMessage(tr("Проверка энкодеров завершена.")) }
+    catch (error) { setMessage(error instanceof Error ? tr(error.message) : tr("Не удалось проверить энкодеры.")) }
+    finally { setBusy(false) }
+  }
   const formatBytes = (value: number) => `${(value / 1_048_576).toFixed(1)} ${tr('МБ')}`
   return <section className="settings-card"><h2>FFmpeg</h2><p>{status.available ? `${tr('Готов')} · ${status.version} · ${status.source === 'managed' ? tr("установлен приложением") : status.source === 'custom' ? tr("пользовательский путь") : status.source === 'bundled' ? tr("встроенный") : tr("системный PATH")}` : tr("FFmpeg не найден. Он нужен для работы приложения.")}</p>
-    <div className="setting-row"><div className="setting-path"><strong>{status.available ? status.path : tr("Не найден")}</strong><span>{status.available ? `${tr('Кодеки:')} ${status.encoders?.join(', ') || tr("не определены")} · GPU: ${status.gpu?.join(', ') || tr("не обнаружен")}` : tr("Другие разделы доступны; обработка включится после установки.")}</span></div><button className="secondary-button" onClick={() => void window.ffmpegStudio.testFfmpeg().then(() => setMessage(tr("Пробная кодировка 1 секунды прошла."))).catch(error => setMessage(error instanceof Error ? tr(error.message) : tr("Тест завершился ошибкой.")))}>{tr("Проверить работоспособность")}</button></div>
+    <div className="setting-row"><div className="setting-path"><strong>{status.available ? status.path : tr("Не найден")}</strong><span>{status.available ? `${tr('Кодеки:')} ${status.encoders?.join(', ') || tr("не определены")} · GPU: ${status.gpu?.join(', ') || tr("не обнаружен")}` : tr("Другие разделы доступны; обработка включится после установки.")}</span></div><button className="secondary-button" onClick={() => void recheckCodecs()} disabled={busy || !status.available}>{tr("Перепроверить энкодеры")}</button><button className="secondary-button" onClick={() => void window.ffmpegStudio.testFfmpeg().then(() => setMessage(tr("Пробная кодировка 1 секунды прошла."))).catch(error => setMessage(error instanceof Error ? tr(error.message) : tr("Тест завершился ошибкой.")))}>{tr("Проверить работоспособность")}</button></div>
     <div className="setting-row setting-row-spaced"><label className="field">{tr("Сборка")}<select value={build} onChange={event => setBuild(event.target.value as typeof build)}><option value="essentials">Essentials</option><option value="full">Full</option></select></label><label className="field">{tr("Версия")}<select value={channel} onChange={event => setChannel(event.target.value as typeof channel)}><option value="stable">{tr("Стабильная")}</option><option value="latest">{tr("Последняя")}</option></select></label><button className="primary-button" disabled={busy} onClick={() => void install()}>{busy ? tr("Скачивание…") : status.available ? tr("Скачать / обновить") : tr("Скачать автоматически (рекомендуется)")}</button></div>
     {progress && <div className="download-progress"><div className="progress-track"><span style={{ width: `${progress.percent}%` }} /></div><span>{progress.total ? `${progress.percent.toFixed(0)}% · ${formatBytes(progress.received)} / ${formatBytes(progress.total)}` : `${formatBytes(progress.received)}${tr(' · размер неизвестен')}`} · {formatBytes(progress.speed)}/{tr('с')}{progress.eta ? ` · ~${Math.ceil(progress.eta)} ${tr('с')}` : ''}</span><button className="cancel-button" onClick={() => void window.ffmpegStudio.cancelFfmpegDownload()}>{tr("Отмена")}</button></div>}
     <div className="setting-row setting-row-compact-spaced"><button className="secondary-button" onClick={() => void installOffline()}>{tr("Выбрать архив или папку (офлайн)")}</button><button className="secondary-button" onClick={() => void choosePath()}>{tr("Указать путь вручную")}</button>{status.available && <><button className="secondary-button" onClick={() => void window.ffmpegStudio.reveal(status.path)}>{tr("Открыть папку")}</button><button className="secondary-button" onClick={() => void window.ffmpegStudio.removeFfmpeg().then(() => window.ffmpegStudio.ffmpegStatus()).then(onStatus)}>{tr("Удалить скачанную версию")}</button></>}</div>
@@ -165,6 +172,25 @@ export function App() {
   const [preset, setPreset] = useState<Preset>(presets[0]!)
   const [targetFormat, setTargetFormat] = useState('mp4')
   const [videoCodec, setVideoCodec] = useState('auto')
+  const [audioCodec, setAudioCodec] = useState('auto')
+  const [imageCodec, setImageCodec] = useState('auto')
+  const [qualityMode, setQualityMode] = useState<QualityMode>('balanced')
+  const [codecProfile, setCodecProfile] = useState('')
+  const [pixelFormat, setPixelFormat] = useState('')
+  const [threads, setThreads] = useState(0)
+  const [tune, setTune] = useState('')
+  const [rowMt, setRowMt] = useState(true)
+  const [filmGrain, setFilmGrain] = useState(0)
+  const [svtParams, setSvtParams] = useState('')
+  const [cpuUsed, setCpuUsed] = useState(4)
+  const [deadline, setDeadline] = useState('good')
+  const [lossless, setLossless] = useState(false)
+  const [imageQuality, setImageQuality] = useState(80)
+  const [imageLossless, setImageLossless] = useState(false)
+  const [imageEffort, setImageEffort] = useState(7)
+  const [audioBitrate, setAudioBitrate] = useState(192)
+  const [audioQuality, setAudioQuality] = useState(5)
+  const [compressionLevel, setCompressionLevel] = useState(5)
   const [trimStart, setTrimStart] = useState('00:00:00')
   const [trimEnd, setTrimEnd] = useState('')
   const [trimMode, setTrimMode] = useState(false)
@@ -173,7 +199,7 @@ export function App() {
   const [outputDir, setOutputDir] = useState('')
   const [quality, setQuality] = useState(23)
   const [advanced, setAdvanced] = useState(false)
-  const [ffmpeg, setFfmpeg] = useState({ available: false, version: '', path: '' })
+  const [ffmpeg, setFfmpeg] = useState<FfmpegStatus>({ available: false, version: '', path: '', encoders: [], gpu: [], encoderAvailability: {} })
   const [jobs, setJobs] = useState<{ id: string; name: string; progress: number; status: 'working' | 'done' | 'error' | 'cancelled'; error?: string }[]>([])
   const [dragging, setDragging] = useState(false)
   const [toast, setToast] = useState('')
@@ -245,6 +271,60 @@ export function App() {
   }, [appearance.hiddenSections, appearance.sidebarSections, section])
 
   const outputPath = useMemo(() => outputDir || translate("Папка с исходным файлом", appearance.language), [appearance.language, outputDir])
+  const effectiveVideoCodecId = videoCodec === 'auto' ? defaultVideoCodecForContainer(targetFormat, preset.id === 'h265') : videoCodec
+  const selectedVideoCodec = codecById(effectiveVideoCodecId)
+  const selectedAudioCodec = audioCodec === 'auto' ? defaultAudioCodecForContainer(targetFormat) : audioCodec
+  const selectedImageCodec = imageCodec === 'auto' ? codecById(targetFormat) : codecById(imageCodec)
+  const videoSettingsCodec = selectedImageCodec ? undefined : selectedVideoCodec
+  const hasTargetSizeSupport = selectedVideoCodec?.targetSize === true && !selectedImageCodec && videoCodec !== 'copy' && qualityMode !== 'lossless' && preset.id !== 'mp3' && preset.id !== 'gif'
+  const codecAvailable = (id: string) => {
+    const definition = codecById(id)
+    if (!definition) return true
+    const status = ffmpeg.encoderAvailability?.[id]
+    return status?.available ?? ffmpeg.encoders?.includes(id) ?? false
+  }
+  const codecTitle = (id: string) => {
+    const codec = codecById(id)
+    const availability = ffmpeg.encoderAvailability?.[id]
+    if (availability?.available) return tr(codec?.description ?? '')
+    if (codec?.hardware && availability?.reason !== 'encoder-missing') return tr("Энкодер найден, но пробная кодировка не прошла; проверьте драйвер и устройство.")
+    return tr("Нет в вашей сборке FFmpeg; установите сборку Full в настройках FFmpeg.")
+  }
+  const isCompatibleOutput = (format: string) => {
+    const imageOutput = codecById(format)?.type === 'image'
+    const videoId = videoCodec === 'auto' ? defaultVideoCodecForContainer(format, preset.id === 'h265') : videoCodec
+    const audioId = audioCodec === 'auto' ? defaultAudioCodecForContainer(format) : audioCodec
+    const videoOk = imageOutput || videoId === 'none' || videoId === 'copy' || isCodecContainerCompatible(videoId, format)
+    const audioOk = imageOutput || videoId === 'none' || audioId === 'copy' || isCodecContainerCompatible(audioId, format)
+    const imageOk = imageCodec === 'auto' || isCodecContainerCompatible(imageCodec, format)
+    return videoOk && audioOk && imageOk
+  }
+  const availableContainers = ['mp4','mkv','webm','mov','avi','mxf','ogv','ogg','3gp','opus','flac','m4a','wv','tta','ac3','eac3','spx','wav','avif','webp','jxl','jp2']
+  const suggestFormat = (codecId: string) => {
+    const definition = codecById(codecId)
+    if (!definition) return
+    setTargetFormat(current => definition.containers.includes(current) ? current : definition.defaultContainer)
+  }
+  const selectVideoCodec = (id: string) => {
+    setVideoCodec(id)
+    if (id !== 'auto' && id !== 'copy') suggestFormat(id)
+    if (!codecById(id)?.targetSize) setCompressMode(false)
+  }
+  const selectAudioCodec = (id: string) => {
+    setAudioCodec(id)
+    if (id === 'auto' && videoCodec === 'none') setVideoCodec('auto')
+    if (id !== 'auto' && id !== 'copy' && !isCodecContainerCompatible(id, targetFormat)) suggestFormat(id)
+    const audioOnlyFormats = ['opus','ogg','flac','m4a','wv','tta','ac3','eac3','spx','wav']
+    if (id !== 'auto' && id !== 'copy' && audioOnlyFormats.includes(codecById(id)?.defaultContainer ?? '')) setVideoCodec('none')
+  }
+  const selectTargetFormat = (format: string) => {
+    setTargetFormat(format)
+    if (['opus','flac','m4a','wv','tta','ac3','eac3','spx','wav'].includes(format) && audioCodec !== 'copy') setVideoCodec('none')
+  }
+  const selectImageCodec = (id: string) => {
+    setImageCodec(id)
+    if (id !== 'auto') suggestFormat(id)
+  }
   const addFiles = async (paths: string[]) => {
     const unique = [...new Set(paths)].filter(path => !files.some(file => file.path === path))
     const added = await Promise.all(unique.map(async path => {
@@ -268,6 +348,10 @@ export function App() {
     if (!files.length) { setToast(tr("Сначала добавьте медиафайлы")); return }
     if (!ffmpeg.available) { setToast(tr("FFmpeg не найден. Установите его или укажите путь в настройках.")); return }
     if (compressMode && (preset.id === 'mp3' || preset.id === 'gif')) { setToast(tr("Целевой размер доступен для видео. Выберите видеоформат.")); return }
+    if (compressMode && !hasTargetSizeSupport) { setToast(tr("Целевой размер недоступен для этого кодека: используйте VP9, AV1 или другой кодек с двухпроходным режимом.")); return }
+    if (!isCompatibleOutput(targetFormat)) { setToast(tr("Выбранная пара кодека и контейнера несовместима. Выберите предложенный контейнер.")); return }
+    const unavailableCodec = [videoCodec, audioCodec, imageCodec].find(id => id !== 'auto' && id !== 'copy' && !codecAvailable(id))
+    if (unavailableCodec) { setToast(tr("Этот кодек не прошёл проверку доступности. Перепроверьте FFmpeg или выберите другой кодек.")); return }
     const trimBegin = trimMode ? parseClock(trimStart) : undefined
     const trimFinish = trimMode && trimEnd ? parseClock(trimEnd) : undefined
     if (trimMode && (trimBegin === undefined || !Number.isFinite(trimBegin) || trimBegin < 0 || (trimFinish !== undefined && (!Number.isFinite(trimFinish) || trimFinish <= trimBegin)))) {
@@ -277,7 +361,7 @@ export function App() {
     for (const file of files.filter(item => !item.error)) {
       while (queuePausedRef.current) await new Promise(resolve => setTimeout(resolve, 200))
       const id = crypto.randomUUID()
-      const extension = compressMode ? 'mp4' : preset.id === 'mp3' || preset.id === 'gif' ? preset.extension : targetFormat
+      const extension = preset.id === 'mp3' || preset.id === 'gif' ? preset.extension : targetFormat
       const stem = file.name.replace(/\.[^.]+$/, '')
       const output = `${outputDir || file.path.replace(/[\\/][^\\/]+$/, '')}/${stem}_${preset.id}.${extension}`
       const duration = Number(file.probe?.format.duration ?? 0)
@@ -290,9 +374,9 @@ export function App() {
           if (!clipDuration) throw new Error(tr("Файл должен содержать длительность для сжатия до заданного размера"))
           const audioKbps = 128
           const videoKbps = calculateTargetVideoBitrateKbps(Number(targetSizeMB), clipDuration, audioKbps)
-          result = await window.ffmpegStudio.compress({ id, input: file.path, output, videoKbps, audioKbps, duration: clipDuration, start })
+          result = await window.ffmpegStudio.compress({ id, input: file.path, output, videoKbps, audioKbps, duration: clipDuration, start, videoCodec: effectiveVideoCodecId, quality, qualityMode, pixelFormat: pixelFormat || undefined, rowMt, cpuUsed, deadline, svtParams, audioCodec: selectedAudioCodec })
         } else {
-          const args = buildFfmpegArgs({ input: file.path, output, format: extension, preset: preset.id, quality, start, duration: clipDuration, videoCodec: videoCodec === 'auto' ? undefined : videoCodec })
+          const args = buildFfmpegArgs({ input: file.path, output, format: extension, preset: preset.id, quality, start, duration: clipDuration, videoCodec: videoCodec === 'auto' ? undefined : videoCodec, audioCodec: audioCodec === 'auto' ? undefined : selectedAudioCodec, imageCodec: imageCodec === 'auto' ? undefined : imageCodec, qualityMode, profile: codecProfile || undefined, pixelFormat: pixelFormat || undefined, threads: threads || undefined, tune: tune || undefined, rowMt, filmGrain: selectedVideoCodec?.filmGrain ? filmGrain : undefined, svtParams: svtParams || undefined, cpuUsed, deadline, lossless, imageQuality, imageLossless, effort: imageEffort, audioBitrateKbps: audioBitrate, audioQuality, compressionLevel })
           result = await window.ffmpegStudio.convert({ id, input: file.path, output, args: args.slice(0, -1), duration: clipDuration })
         }
         setJobs(current => current.map(job => job.id === id ? { ...job, progress: 100, status: 'done' } : job))
@@ -355,9 +439,34 @@ export function App() {
             return <article className="file-card" key={file.path}><div className="file-preview">{file.thumbnail ? <img src={file.thumbnail} alt="" /> : <div className="file-glyph">{mediaKind(file.probe, appearance.language) === tr("Аудио") ? <FileAudio2 size={20} /> : <FileVideo2 size={20} />}</div>}<span className="duration">{formatTime(file.probe?.format.duration)}</span></div><div className="file-info"><strong title={file.name}>{file.name}</strong><span>{file.error ? tr("Ошибка чтения") : `${mediaKind(file.probe, appearance.language)} · ${file.probe?.format.format_name?.split(',')[0]?.toUpperCase() ?? tr("файл")}`}</span><div className="file-meta">{video ? `${video.width} × ${video.height}` : file.probe?.streams[0]?.codec_name ?? '—'} <i>·</i> {formatSize(file.size, appearance.language)}</div></div><div className="file-status"><span className={file.error ? 'status-bad' : ''}>{file.error ? tr("Ошибка") : tr("Готов")}</span><button className="small-icon" aria-label={tr("Удалить файл")} onClick={() => setFiles(current => current.filter(item => item.path !== file.path))}><X size={15} /></button></div></article>
           })}</div></section>}
           <section className="preset-section"><div className="section-header"><div><h2>{tr("Формат результата")}</h2><p>{tr("Выберите готовый вариант или настройте параметры вручную")}</p></div><button className="text-link" onClick={() => setAdvanced(!advanced)}><SlidersHorizontal size={14} /> {tr("Настроить")}</button></div><div className="preset-grid">{presets.map(item => <button key={item.id} className={`preset-card ${preset.id === item.id ? 'selected' : ''}`} onClick={() => setPreset(item)}><div className="preset-icon"><item.icon size={18} /></div><div className="preset-copy"><strong>{tr(item.title)}</strong><span>{tr(item.detail)}</span></div><span className="radio-mark">{preset.id === item.id && <Check size={11} />}</span></button>)}</div>
-            {advanced && <div className="advanced-panel"><div className="field"><label htmlFor="quality">{tr("Качество")} <span>CRF {quality}</span></label><input id="quality" type="range" min="18" max="32" value={quality} onChange={event => setQuality(Number(event.target.value))} /><div className="range-labels"><span>{tr("Высокое")}</span><span>{tr("Меньший файл")}</span></div></div><div className="field"><label>{tr("Контейнер")}</label><div className="select-wrap"><select value={targetFormat} onChange={event => { setTargetFormat(event.target.value); setVideoCodec('auto') }}><option value="mp4">MP4</option><option value="mkv">MKV</option><option value="webm">WebM</option><option value="mov">MOV</option><option value="avi">AVI</option></select><ChevronDown size={14} /></div></div><div className="field"><label>{tr("Видеокодек")}</label><div className="select-wrap"><select value={videoCodec} onChange={event => setVideoCodec(event.target.value)}><option value="auto">{tr("Автоматически")}</option>{targetFormat === 'webm' ? <option value="libvpx-vp9">VP9</option> : targetFormat === 'avi' ? <option value="mpeg4">MPEG-4</option> : <><option value="libx264">H.264</option><option value="libx265">H.265</option></>}<option value="copy">{tr("Копировать поток")}</option></select><ChevronDown size={14} /></div></div></div>}
+            {advanced && <div className="advanced-panel">
+              <div className="field"><label>{tr("Контейнер")}</label><div className="select-wrap"><select value={targetFormat} onChange={event => selectTargetFormat(event.target.value)}>{availableContainers.map(format => <option key={format} value={format} disabled={!isCompatibleOutput(format)}>{format.toUpperCase()}</option>)}</select><ChevronDown size={14} /></div></div>
+              <div className="field"><label>{tr("Видеокодек")}</label><div className="select-wrap"><select value={videoCodec} onChange={event => selectVideoCodec(event.target.value)}><option value="auto">{tr("Автоматически")}</option><option value="none">{tr("Только аудио")}</option><optgroup label={tr("Видеокодеки")}>{codecsOfType('video').map(codec => <option key={codec.id} value={codec.id} disabled={!codecAvailable(codec.id)} title={codecTitle(codec.id)}>{tr(codec.name)}{codecAvailable(codec.id) ? '' : ` · ${tr("недоступен")}`}</option>)}</optgroup><option value="copy">{tr("Копировать поток")}</option></select><ChevronDown size={14} /></div></div>
+              <div className="field"><label>{tr("Аудиокодек")}</label><div className="select-wrap"><select value={audioCodec} onChange={event => selectAudioCodec(event.target.value)}><option value="auto">{tr("Автоматически")}</option><option value="copy">{tr("Копировать поток")}</option><optgroup label={tr("Аудиокодеки")}>{codecsOfType('audio').map(codec => <option key={codec.id} value={codec.id} disabled={!codecAvailable(codec.id)} title={codecTitle(codec.id)}>{tr(codec.name)}{codecAvailable(codec.id) ? '' : ` · ${tr("недоступен")}`}</option>)}</optgroup></select><ChevronDown size={14} /></div></div>
+              <div className="field"><label>{tr("Кодек изображения")}</label><div className="select-wrap"><select value={imageCodec} onChange={event => selectImageCodec(event.target.value)}><option value="auto">{tr("Автоматически")}</option>{codecsOfType('image').map(codec => <option key={codec.id} value={codec.id} disabled={!codecAvailable(codec.id)} title={codecTitle(codec.id)}>{tr(codec.name)}{codecAvailable(codec.id) ? '' : ` · ${tr("недоступен")}`}</option>)}</select><ChevronDown size={14} /></div></div>
+              {(videoSettingsCodec?.rateControl !== 'none' || selectedImageCodec) && <div className="field"><label>{tr("Режим качества")}</label><div className="select-wrap"><select value={qualityMode} onChange={event => setQualityMode(event.target.value as QualityMode)}><option value="fast">{tr("Быстро")}</option><option value="balanced">{tr("Сбалансированно")}</option><option value="maximum" title={tr("Лучшее сжатие занимает больше времени.")}>{tr("Максимальное сжатие")}</option><option value="lossless" disabled={!videoSettingsCodec?.lossless && !videoSettingsCodec?.losslessOption}>{tr("Без потерь")}</option></select><ChevronDown size={14} /></div></div>}
+              {(videoSettingsCodec?.rateControl !== 'none' || selectedImageCodec) && <div className="field"><label htmlFor="quality">{tr("Качество")} <span>{selectedImageCodec ? 'QUALITY' : videoSettingsCodec?.rateControl?.toUpperCase() ?? 'CRF'} {quality}</span></label><input id="quality" type="range" min="0" max="63" value={quality} onChange={event => setQuality(Number(event.target.value))} /><div className="range-labels"><span>{tr("Высокое")}</span><span>{tr("Меньший файл")}</span></div></div>}
+              {videoSettingsCodec?.profiles?.length ? <div className="field"><label>{tr("Профиль")}</label><div className="select-wrap"><select value={codecProfile} onChange={event => setCodecProfile(event.target.value)}><option value="">{tr("По умолчанию")}</option>{videoSettingsCodec.profiles.map(value => <option key={value} value={value}>{value.toUpperCase()}</option>)}</select><ChevronDown size={14} /></div></div> : null}
+              {videoSettingsCodec?.pixelFormats?.length ? <div className="field"><label>{tr("Формат пикселей")}</label><div className="select-wrap"><select value={pixelFormat || videoSettingsCodec.pixelFormats[0]} onChange={event => setPixelFormat(event.target.value)}>{videoSettingsCodec.pixelFormats.map(value => <option key={value} value={value}>{value}</option>)}</select><ChevronDown size={14} /></div></div> : null}
+              {videoSettingsCodec?.bitDepths?.length ? <div className="field"><label>{tr("Битность")}</label><div className="select-wrap"><select value={pixelFormat ? Number(pixelFormat.match(/(10|12)le/)?.[1] ?? 8) : videoSettingsCodec.bitDepths[0]} onChange={event => { const depth = Number(event.target.value); setPixelFormat(videoSettingsCodec.pixelFormats?.find(value => depth === 8 ? !/(10|12)le/.test(value) : value.includes(`${depth}le`)) ?? '') }}>{videoSettingsCodec.bitDepths.map(depth => <option key={depth} value={depth}>{depth} {tr("бит")}</option>)}</select><ChevronDown size={14} /></div></div> : null}
+              {videoSettingsCodec?.threads && <div className="field"><label>{tr("Потоки")}</label><input type="number" min="0" max="128" value={threads} onChange={event => setThreads(Number(event.target.value))} /><small>{tr("0 — автоматически")}</small></div>}
+              {videoSettingsCodec?.tune && <div className="field"><label>{tr("Настройка кодирования")}</label><div className="select-wrap"><select value={tune} onChange={event => setTune(event.target.value)}><option value="">{tr("По умолчанию")}</option>{(videoSettingsCodec.id.includes('nvenc') ? ['hq','ll','ull','lossless'] : ['film','animation','grain','stillimage','fastdecode','zerolatency']).map(value => <option key={value} value={value}>{value}</option>)}</select><ChevronDown size={14} /></div></div>}
+              {videoSettingsCodec?.rowMt && <label className="trim-switch"><input type="checkbox" checked={rowMt} onChange={event => setRowMt(event.target.checked)} /> {tr("Многопоточная обработка строк")}</label>}
+              {(videoSettingsCodec?.cpuUsed || videoSettingsCodec?.deadline) && <div className="field"><label>{tr("Скорость кодирования")} <span>{cpuUsed}</span></label><input type="range" min="0" max="8" value={cpuUsed} onChange={event => setCpuUsed(Number(event.target.value))} /><small>{tr("Для VP9 и libaom-av1: большее значение быстрее, но хуже сжатие.")}</small></div>}
+              {videoSettingsCodec?.deadline && <div className="field"><label>{tr("Режим VP9")}</label><div className="select-wrap"><select value={deadline} onChange={event => setDeadline(event.target.value)}><option value="realtime">realtime</option><option value="good">good</option><option value="best">best</option></select><ChevronDown size={14} /></div></div>}
+              {videoSettingsCodec?.filmGrain && <div className="field"><label>{tr("Зерно плёнки")} <span>{filmGrain}</span></label><input type="range" min="0" max="50" value={filmGrain} onChange={event => setFilmGrain(Number(event.target.value))} /></div>}
+              {videoSettingsCodec?.svtParams && <div className="field"><label>{tr("Параметры SVT-AV1")}</label><input value={svtParams} onChange={event => setSvtParams(event.target.value)} placeholder="key=value,key=value" /></div>}
+              {(videoSettingsCodec?.losslessOption || videoSettingsCodec?.lossless) && <label className="trim-switch"><input type="checkbox" checked={lossless} onChange={event => setLossless(event.target.checked)} /> {tr("Режим без потерь")}</label>}
+              {selectedImageCodec && <><div className="field"><label>{tr("Качество изображения")} <span>{imageQuality}</span></label><input type="range" min="0" max="100" value={imageQuality} onChange={event => setImageQuality(Number(event.target.value))} /></div><label className="trim-switch"><input type="checkbox" checked={imageLossless} onChange={event => setImageLossless(event.target.checked)} /> {tr("Без потерь")}</label>{selectedImageCodec.effort && <div className="field"><label>{tr("Скорость / сжатие")} <span>{imageEffort}</span></label><input type="range" min="1" max="9" value={imageEffort} onChange={event => setImageEffort(Number(event.target.value))} /></div>}</>}
+              {(audioCodec !== 'auto' || targetFormat === 'webm') && codecById(selectedAudioCodec)?.rateControl !== 'none' && <div className="field"><label>{tr("Битрейт аудио")} <span>{audioBitrate} kbit/s</span></label><input type="number" min="32" max="512" value={audioBitrate} onChange={event => setAudioBitrate(Number(event.target.value))} /></div>}
+              {['flac','wavpack'].includes(selectedAudioCodec) && <div className="field"><label>{tr("Уровень сжатия")} <span>{compressionLevel}</span></label><input type="range" min="0" max={selectedAudioCodec === 'flac' ? 12 : 8} value={compressionLevel} onChange={event => setCompressionLevel(Number(event.target.value))} /></div>}
+              {selectedAudioCodec === 'libvorbis' && <div className="field"><label>{tr("Качество Vorbis")} <span>{audioQuality}</span></label><input type="range" min="0" max="10" value={audioQuality} onChange={event => setAudioQuality(Number(event.target.value))} /></div>}
+              {(videoSettingsCodec?.description || selectedImageCodec?.description) && <p className="codec-help">{tr(selectedImageCodec?.description || videoSettingsCodec?.description || '')}</p>}
+            </div>}
             <div className="trim-tools"><label className="trim-switch"><input type="checkbox" checked={trimMode} onChange={event => setTrimMode(event.target.checked)} /> {tr("Обрезать фрагмент")}</label>{trimMode && <div className="trim-times"><label>{tr("Начало")} <input aria-label={tr("Начало")} value={trimStart} onChange={event => setTrimStart(event.target.value)} placeholder={tr("ЧЧ:ММ:СС")} /></label><label>{tr("Конец")} <input aria-label={tr("Конец")} value={trimEnd} onChange={event => setTrimEnd(event.target.value)} placeholder={tr("ЧЧ:ММ:СС")} /></label><span>{tr("Точная обрезка с перекодированием")}</span></div>}</div>
-            <div className="trim-tools"><label className="trim-switch"><input type="checkbox" checked={compressMode} onChange={event => setCompressMode(event.target.checked)} /> {tr("Сжать до нужного размера")}</label>{compressMode && <div className="trim-times"><label>{tr("Размер, МБ")} <input aria-label={tr("Целевой размер в мегабайтах")} type="number" min="1" max="4096" value={targetSizeMB} onChange={event => setTargetSizeMB(event.target.value)} /></label><span>{tr("MP4 · H.264 · двухпроходное кодирование")}</span></div>}</div>
+            {advanced && codecRegistry.some(codec => !codecAvailable(codec.id)) && <div className="notice"><div className="notice-symbol">!</div><div><strong>{tr("Некоторые кодеки не прошли проверку или отсутствуют в сборке FFmpeg.")}</strong><span>{tr("Установите сборку Full или выберите другой FFmpeg в настройках.")}</span></div><button onClick={() => setSection('settings')}>{tr("Настройки FFmpeg")}</button></div>}
+            {!isCompatibleOutput(targetFormat) && <div className="notice"><div className="notice-symbol">!</div><div><strong>{tr("Выбранная пара кодека и контейнера несовместима.")}</strong><span>{tr("Предложен совместимый контейнер; выберите доступный формат в списке.")}</span></div><button onClick={() => { suggestFormat(videoCodec !== 'auto' ? videoCodec : audioCodec !== 'auto' ? audioCodec : imageCodec); }}>{tr("Исправить формат")}</button></div>}
+            <div className="trim-tools"><label className="trim-switch"><input type="checkbox" checked={compressMode} disabled={!hasTargetSizeSupport} onChange={event => setCompressMode(event.target.checked)} /> {tr("Сжать до нужного размера")}</label>{compressMode && <div className="trim-times"><label>{tr("Размер, МБ")} <input aria-label={tr("Целевой размер в мегабайтах")} type="number" min="1" max="4096" value={targetSizeMB} onChange={event => setTargetSizeMB(event.target.value)} /></label><span>{`${targetFormat.toUpperCase()} · ${selectedVideoCodec ? tr(selectedVideoCodec.name) : effectiveVideoCodecId} · ${tr("двухпроходное кодирование")}`}</span></div>}{!hasTargetSizeSupport && <span>{tr("Для выбранного кодека двухпроходное кодирование не поддерживается.")}</span>}</div>
           </section>
           <section className="output-section"><div className="output-label"><FolderOpen size={16} /><div><strong>{tr("Папка сохранения")}</strong><span title={outputPath}>{outputDir || tr("Рядом с исходным файлом")}</span></div></div><button className="secondary-button browse-button" onClick={() => void window.ffmpegStudio.chooseDirectory().then(path => { if (path) { setOutputDir(path); void window.ffmpegStudio.setSettings({ outputDir: path }) } })}>{tr("Обзор")} <ChevronDown size={14} /></button></section>
           <footer className="convert-footer"><button className="primary-button" onClick={() => void convert()}><Play size={15} fill="currentColor" /> {tr("Конвертировать")} <span className="button-count">{files.length || 0}</span></button></footer>

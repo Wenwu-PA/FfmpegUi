@@ -10,6 +10,8 @@ import { pathToFileURL } from 'node:url'
 import Store from 'electron-store'
 import { z } from 'zod'
 import type { FfmpegProgress } from '../src/shared/types'
+import { buildTargetSizePassArgs } from '../src/shared/buildFfmpegArgs'
+import { codecRegistry, parseEncoderList } from '../src/shared/codecs'
 import { calculateDownloadProgress, getResumeOffset, matchesSha256, parseFfmpegVersion, parseSha256, selectFirstWorkingCandidate } from '../src/shared/ffmpegInstaller'
 import { appearanceSchema, defaultAppearance, type Appearance } from '../src/shared/appearance'
 import { t as translate } from '../src/shared/i18n'
@@ -49,6 +51,7 @@ const ffmpegArgsSchema = z.array(z.string().max(2048).refine(argument => !/^-(?:
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let resolvedBinaries: { ffmpeg: string; ffprobe: string } | undefined
+const hardwareProbeCache = new Map<string, Promise<{ available: boolean; reason?: string }>>()
 let quitWhenIdle = false
 let allowQuit = false
 let quitTimer: NodeJS.Timeout | undefined
@@ -90,6 +93,38 @@ function locate(binary: 'ffmpeg' | 'ffprobe'): string {
 }
 
 function parseFfmpegFiles(value: string) { return { ffmpeg: parseFfmpegVersion(value) ?? '', date: value.match(/^built with .*$/mi)?.[0] ?? '' } }
+
+async function probeHardwareEncoder(ffmpegPath: string, version: string, encoder: string) {
+  const key = `${path.resolve(ffmpegPath)}|${version}|${encoder}`
+  const cached = hardwareProbeCache.get(key)
+  if (cached) return cached
+  const result = run(ffmpegPath, ['-hide_banner','-loglevel','error','-f','lavfi','-i','testsrc2=size=160x90:rate=1:duration=1','-t','1','-frames:v','1','-an','-c:v',encoder,'-f','null','-'], 5_000)
+    .then(() => ({ available: true }))
+    .catch(error => ({ available: false, reason: error instanceof Error && error.message.includes('timed out') ? 'probe-timeout' : 'probe-failed' }))
+  hardwareProbeCache.set(key, result)
+  return result
+}
+
+async function buildFfmpegStatus(status: Awaited<ReturnType<typeof refreshFfmpegSelection>>, encoderText: string) {
+  const detected = new Set(parseEncoderList(encoderText))
+  const version = parseFfmpegFiles(await run(status.path, ['-version'])).ffmpeg
+  const entries = codecRegistry
+  const encoderAvailability: Record<string, { available: boolean; reason?: string }> = {}
+  const hardware = entries.filter(codec => codec.hardware && detected.has(codec.encoder))
+  for (const codec of entries) {
+    if (!detected.has(codec.encoder)) encoderAvailability[codec.id] = { available: false, reason: 'encoder-missing' }
+    else if (!codec.hardware) encoderAvailability[codec.id] = { available: true }
+  }
+  const probes = await Promise.all(hardware.map(async codec => [codec.id, await probeHardwareEncoder(status.path, version, codec.encoder)] as const))
+  for (const [id, result] of probes) encoderAvailability[id] = result
+  const encoders = entries.filter(codec => encoderAvailability[codec.id]?.available).map(codec => codec.id)
+  const gpu = entries.filter(codec => codec.hardware && encoderAvailability[codec.id]?.available).map(codec => codec.id)
+  return {
+    ...status, version, encoders, gpu, encoderAvailability,
+    versions: await readdir(path.join(app.getPath('userData'), 'ffmpeg')).catch(() => []),
+    activeVersion: settings.get('ffmpegVersion') ?? '',
+  }
+}
 
 async function findBinary(root: string, name: string, depth = 0): Promise<string | undefined> {
   if (depth > 6) return undefined
@@ -621,7 +656,7 @@ function registerIpc() {
     })
   })
   ipcMain.handle('media:compress', async (event, input: unknown) => {
-    const job = z.object({ id: z.string(), input: localPathSchema, output: localPathSchema, videoKbps: z.number().int().min(100), audioKbps: z.number().int().min(32).max(512), duration: z.number().positive(), start: z.number().nonnegative().optional() }).parse(input)
+    const job = z.object({ id: z.string(), input: localPathSchema, output: localPathSchema, videoKbps: z.number().int().min(100), audioKbps: z.number().int().min(32).max(512), duration: z.number().positive(), start: z.number().nonnegative().optional(), videoCodec: z.string().optional(), quality: z.number().int().min(0).max(63).optional(), qualityMode: z.enum(['fast','balanced','maximum','lossless']).optional(), pixelFormat: z.string().optional(), rowMt: z.boolean().optional(), cpuUsed: z.number().int().min(0).max(8).optional(), deadline: z.enum(['good','realtime','best']).optional(), svtParams: z.string().max(256).optional(), audioCodec: z.string().optional() }).parse(input)
     const output = unusedOutputPath(job.output)
     const partOutput = createPartPath(output)
     const passlog = path.join(app.getPath('temp'), `ffmpeg-studio-${randomUUID()}`)
@@ -635,10 +670,9 @@ function registerIpc() {
       return buffer
     }
     const runPass = (pass: 1 | 2) => new Promise<void>((resolve, reject) => {
-      const nullOutput = process.platform === 'win32' ? 'NUL' : '/dev/null'
-      const outputArgs = pass === 1 ? ['-an','-f','null',nullOutput] : ['-c:a','aac','-b:a',`${job.audioKbps}k`,'-movflags','+faststart',partOutput]
       const trimArgs = job.start === undefined ? [] : ['-ss',String(job.start),'-t',String(job.duration)]
-      const child = spawn(locate('ffmpeg'), ['-y',...trimArgs,'-i',job.input,'-c:v','libx264','-b:v',`${job.videoKbps}k`,'-pass',String(pass),'-passlogfile',passlog,...outputArgs,'-progress','pipe:1','-nostats'], { windowsHide: true, stdio: ['pipe','pipe','pipe'] })
+      const passArgs = buildTargetSizePassArgs({ input: job.input, output: partOutput, format: path.extname(output).slice(1), preset: 'web', quality: job.quality ?? 23, videoCodec: job.videoCodec, qualityMode: job.qualityMode, pixelFormat: job.pixelFormat, rowMt: job.rowMt, cpuUsed: job.cpuUsed, deadline: job.deadline, svtParams: job.svtParams, audioCodec: job.audioCodec }, pass, passlog, job.videoKbps, job.audioKbps, partOutput)
+      const child = spawn(locate('ffmpeg'), ['-y',...trimArgs,'-i',job.input,...passArgs,'-progress','pipe:1','-nostats'], { windowsHide: true, stdio: ['pipe','pipe','pipe'] })
       active.set(job.id, child)
       let buffer = ''; let log = ''
       child.stdout?.on('data', data => { buffer = progressOutput(data, pass, buffer) })
@@ -664,12 +698,15 @@ function registerIpc() {
   })
   ipcMain.handle('ffmpeg:status', async () => {
     const status = await refreshFfmpegSelection()
-    if (!status.available) return { ...status, encoders: [], gpu: [] }
+    if (!status.available) return { ...status, encoders: [], gpu: [], encoderAvailability: {} }
     try {
       const encoderText = await run(status.path, ['-hide_banner', '-encoders'])
-      const encoders = ['libx264', 'libx265', 'libsvtav1', 'libvpx-vp9', 'h264_nvenc', 'hevc_nvenc', 'h264_qsv', 'hevc_qsv', 'h264_amf', 'hevc_amf'].filter(name => encoderText.includes(name))
-      return { ...status, version: parseFfmpegFiles(await run(status.path, ['-version'])).ffmpeg, encoders, gpu: encoders.filter(name => /nvenc|_qsv|_amf/.test(name)), versions: await readdir(path.join(app.getPath('userData'), 'ffmpeg')).catch(() => []), activeVersion: settings.get('ffmpegVersion') ?? '' }
-    } catch { return { ...status, available: false, version: '', encoders: [], gpu: [] } }
+      return await buildFfmpegStatus(status, encoderText)
+    } catch { return { ...status, available: false, version: '', encoders: [], gpu: [], encoderAvailability: {} } }
+  })
+  ipcMain.handle('ffmpeg:recheck-codecs', async () => {
+    hardwareProbeCache.clear()
+    return true
   })
   ipcMain.handle('app:reveal', (_event, file: unknown) => { shell.showItemInFolder(localPathSchema.parse(file)) })
   ipcMain.handle('app:open', (_event, file: unknown) => shell.openPath(localPathSchema.parse(file)))
