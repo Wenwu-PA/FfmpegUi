@@ -1751,6 +1751,10 @@ select:focus-visible {
   z-index: 1;
 }
 
+:root[data-background='image'] .app-shell.sidebar-collapsed > aside {
+  z-index: var(--z-modal);
+}
+
 :root[data-background='image'] .sidebar {
   background: color-mix(in srgb, var(--surface) 72%, transparent);
   backdrop-filter: blur(var(--measure-12));
