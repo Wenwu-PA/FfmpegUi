@@ -1,0 +1,21 @@
+appId: com.frameforge.ffmpegstudio
+productName: FFmpeg Studio
+directories:
+  output: release
+files:
+  - dist/**
+  - dist-electron/**
+  - package.json
+extraResources:
+  - from: resources/bin/
+    to: bin/
+    filter: ['**/*']
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true

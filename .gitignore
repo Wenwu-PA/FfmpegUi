@@ -1,0 +1,14 @@
+node_modules/
+dist/
+dist-electron/
+out/
+release/
+resources/bin/
+.env*
+*.log
+.DS_Store
+*.part
+coverage/
+*.tsbuildinfo
+playwright-report/
+test-results/
