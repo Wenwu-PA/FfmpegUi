@@ -2,14 +2,10 @@
 
 **FFmpeg Studio** — настольное приложение для конвертации видео и аудио с помощью FFmpeg.
 
-![Главный экран и конвертер, 1920×1080](docs/screenshots/converter-1920x1080.webp)
-
 Светлая тема и свёрнутая боковая панель:
 
 ![Светлая тема, 1280×720](docs/screenshots/appearance-light-1280x720.webp)
 ![Свёрнутая боковая панель, 1280×720](docs/screenshots/sidebar-collapsed-1280x720.webp)
-
-Другие экраны: [конвертер 1280×720](docs/screenshots/converter-1280x720.webp), [очередь 1920×1080](docs/screenshots/queue-1920x1080.webp), [оформление 1920×1080](docs/screenshots/appearance-1920x1080.webp), [настройки FFmpeg 1920×1080](docs/screenshots/ffmpeg-1920x1080.webp), [первый запуск](docs/screenshots/first-run-1280x720.webp). Все изображения находятся в [docs/screenshots](docs/screenshots/) и занимают меньше 300 КБ каждое.
 
 ## Возможности
 
